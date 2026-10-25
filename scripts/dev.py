@@ -135,10 +135,13 @@ def smoke_cli():
 
 
 def main():
+    # Windows의 비 UTF-8 콘솔·리다이렉션에서도 한국어 진단을 출력한다.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["setup", "doctor", "fmt", "check", "test", "run", "info", "viewport", "build"],
+        choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport", "build"],
     )
     parser.add_argument("arguments", nargs="*")
     arguments = parser.parse_args()
@@ -155,21 +158,23 @@ def main():
         cargo("fmt", "--all")
     elif arguments.command == "check":
         cargo("fmt", "--all", "--", "--check")
-        cargo("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")
-        cargo("test", "--workspace")
-        cargo("build", "--workspace")
+        cargo("clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings")
+        cargo("test", "--locked", "--workspace")
+        cargo("build", "--locked", "--workspace")
         smoke_cli()
     elif arguments.command == "test":
-        cargo("test", "--workspace")
+        cargo("test", "--locked", "--workspace")
+    elif arguments.command == "editor":
+        cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":
-        cargo("run", "-p", "engine-desktop")
+        cargo("run", "--locked", "-p", "engine-desktop")
     elif arguments.command in ["info", "viewport"]:
         cargo(
-            "run", "--quiet", "-p", "engine-cli", "--",
+            "run", "--locked", "--quiet", "-p", "engine-cli", "--",
             arguments.command, *arguments.arguments,
         )
     elif arguments.command == "build":
-        cargo("build", "--release", "--workspace")
+        cargo("build", "--locked", "--release", "--workspace")
 
 
 if __name__ == "__main__":

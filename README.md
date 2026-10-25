@@ -28,15 +28,17 @@ GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안�
 ## 현재 구성과 예정 구성
 
 ```text
-crates/engine-core/     현재: 화면 배치·시간 계산, 향후 공통 문서·편집 명령
+crates/engine-core/     현재: 화면 배치·시간 계산
+crates/engine-document/ 현재: 프로젝트 문서·PNG 가져오기·편집 명령·저장·undo/redo
 crates/engine-desktop/  현재: Macroquad 출력 검증 데모
+crates/engine-editor/   현재: GUI 에디터의 기본 창·패널·게임 뷰포트
 crates/engine-cli/      현재: 설정 조회·화면 배치 계산 JSON 명령
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```
 
-Rust는 유지합니다. 별도 `engine-editor`에 egui/eframe과 wgpu 기반 GUI를 추가할 계획입니다.
-이 크레이트와 GUI는 아직 없으며, 라이브러리 숫자 버전은 실제 빌드 확인 후 결정합니다.
+Rust를 유지하고 별도 `engine-editor`에 eframe 0.37.0과 wgpu 기반 GUI 셸을 추가했습니다.
+현재는 기본 창·패널·뷰포트 단계이며 프로젝트와 장면 편집 기능은 다음 단계에서 연결합니다.
 기존 Macroquad 데모는 유지하되 에디터 UI로 확장하지 않습니다.
 
 ## 개발 환경과 명령
@@ -49,6 +51,7 @@ macOS에는 Xcode Command Line Tools, Windows에는 Visual Studio Build Tools의
 ```sh
 python3 scripts/dev.py doctor
 python3 scripts/dev.py check
+python3 scripts/dev.py editor
 ```
 
 Rust가 없는 환경에서는 먼저 `python3 scripts/dev.py setup`을 실행합니다.
@@ -60,9 +63,10 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `setup` | 프로젝트 내부 Rust 도구와 의존성 준비 |
 | `doctor` | 필수 도구 경로와 Cargo 버전 확인 |
 | `fmt` | Rust 소스 포맷 정리 |
-| `check` | 포맷·Clippy·Rust 테스트·빌드·CLI 계약 검사 |
+| `check` | lockfile 고정 상태에서 포맷·Clippy·Rust 테스트·빌드·CLI 계약 검사 |
 | `test` | Rust 테스트 실행 |
-| `run` | 기존 출력 검증 데모 실행. GUI 에디터 실행 명령은 아직 없음 |
+| `editor` | GUI 게임 에디터 실행 |
+| `run` | 기존 Macroquad 출력 검증 데모 실행 |
 | `info` | 현재 코어의 기본 설정을 JSON으로 출력 |
 | `viewport 1001 701` | 해당 창 크기의 픽셀 표시 영역 계산 |
 | `build` | 현재 운영체제용 릴리스 실행 파일 생성 |
@@ -70,12 +74,16 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
 Windows는 `.exe`를 사용합니다. Mac 빌드 명령만으로 Windows 배포 파일까지 생성되지는 않습니다.
 Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --workspace` 등도 직접 사용할 수 있습니다.
+`Cargo.lock`은 버전 관리에 포함하며 검사·테스트·실행·릴리스 빌드는 `--locked`를 사용합니다.
+의존성을 바꿀 때는 `setup`으로 lockfile을 갱신하고 변경 내역을 함께 리뷰합니다.
 
 ## 코드 위치
 
 ```text
 crates/engine-core/     창 없이 쓸 수 있는 화면 배치·시간 계산
+crates/engine-document/ GUI에 독립적인 프로젝트 문서·편집 명령·파일 처리
 crates/engine-desktop/  Macroquad를 통한 창·입력·픽셀 화면 데모
+crates/engine-editor/   GUI 에디터의 기본 창·패널·게임 뷰포트
 crates/engine-cli/      에이전트용 JSON 명령
 scripts/               두 운영체제에서 공통으로 쓰는 개발 명령
 docs/                  설계, 인터페이스, 검증 기록
@@ -89,8 +97,9 @@ docs/                  설계, 인터페이스, 검증 기록
 
 ## 확인된 상태
 
-2026-10-25 현재 로컬 Rust 도구 1.99.0과 `doctor` 통과가 확인되었습니다.
-기존 `target/debug` CLI의 `info`·`viewport` 응답도 확인했습니다.
-이는 현재 소스의 재빌드·전체 테스트·GUI 실행을 확인한 결과는 아닙니다.
-GUI 에디터, 프로젝트 저장 형식, 공통 편집 명령과 MCP 서버는 아직 구현 전입니다.
-다음 기반 PR에서 기존 코드와 lockfile을 검증하면서 첫 GUI 셸 작업을 준비합니다.
+2026-10-25 macOS ARM64의 격리 작업 폴더에서 현재 소스의 포맷·Clippy·Rust 테스트 8개·
+workspace 빌드·CLI 계약 5개를 확인했습니다. GitHub Actions에는 macOS ARM64와 Windows x64
+검사를 구성했습니다. CI 결과와 실제 창 출력 검증은 별도로 기록합니다.
+GUI 에디터의 기본 창과 패널, GUI에 독립적인 프로젝트 문서와 편집 명령을 구현했습니다.
+PNG 가져오기·스프라이트 추가·속성 변경·저장/재열기·undo/redo는 문서 코어 API로 제공하며,
+GUI 연결과 MCP 서버는 후속 단계입니다.
