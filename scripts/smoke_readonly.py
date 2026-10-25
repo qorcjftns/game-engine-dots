@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 import zlib
 
@@ -49,6 +50,9 @@ def hashes(directory):
 
 
 def main():
+    # 부모 Python의 reconfigure는 별도 프로세스에 상속되지 않는다.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="engine-readonly-") as temporary:
         directory = Path(temporary) / "한글 경로 with spaces"
         (directory / "assets").mkdir(parents=True)

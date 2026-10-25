@@ -184,3 +184,8 @@ Windows의 canonical 경로 표현 차이는 같은 파일인지 비교하도록
 
 이 PR은 GUI 파일을 변경하지 않았으므로 실제 UI 검사를 반복하지 않았습니다.
 live 조회·편집, 세션 revision/busy/중복 요청 처리와 MCP 연결은 후속 PR 범위입니다.
+
+첫 Windows CI는 Rust 검사와 신규 CLI 검증을 마친 뒤 스모크의 한글 완료 메시지를
+cp1252로 출력하면서 실패했습니다. 별도 Python 프로세스에도 stdout/stderr UTF-8을 명시했고,
+macOS에서 `PYTHONIOENCODING=cp1252 python3 scripts/smoke_readonly.py`로 10건과 출력 성공을 확인했습니다.
+수정된 commit의 Windows 결과는 후속 CI에서 확인합니다.
