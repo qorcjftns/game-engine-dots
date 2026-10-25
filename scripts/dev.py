@@ -155,21 +155,21 @@ def main():
         cargo("fmt", "--all")
     elif arguments.command == "check":
         cargo("fmt", "--all", "--", "--check")
-        cargo("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")
-        cargo("test", "--workspace")
-        cargo("build", "--workspace")
+        cargo("clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings")
+        cargo("test", "--locked", "--workspace")
+        cargo("build", "--locked", "--workspace")
         smoke_cli()
     elif arguments.command == "test":
-        cargo("test", "--workspace")
+        cargo("test", "--locked", "--workspace")
     elif arguments.command == "run":
-        cargo("run", "-p", "engine-desktop")
+        cargo("run", "--locked", "-p", "engine-desktop")
     elif arguments.command in ["info", "viewport"]:
         cargo(
-            "run", "--quiet", "-p", "engine-cli", "--",
+            "run", "--locked", "--quiet", "-p", "engine-cli", "--",
             arguments.command, *arguments.arguments,
         )
     elif arguments.command == "build":
-        cargo("build", "--release", "--workspace")
+        cargo("build", "--locked", "--release", "--workspace")
 
 
 if __name__ == "__main__":

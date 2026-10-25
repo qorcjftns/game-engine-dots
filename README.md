@@ -60,7 +60,7 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `setup` | 프로젝트 내부 Rust 도구와 의존성 준비 |
 | `doctor` | 필수 도구 경로와 Cargo 버전 확인 |
 | `fmt` | Rust 소스 포맷 정리 |
-| `check` | 포맷·Clippy·Rust 테스트·빌드·CLI 계약 검사 |
+| `check` | lockfile 고정 상태에서 포맷·Clippy·Rust 테스트·빌드·CLI 계약 검사 |
 | `test` | Rust 테스트 실행 |
 | `run` | 기존 출력 검증 데모 실행. GUI 에디터 실행 명령은 아직 없음 |
 | `info` | 현재 코어의 기본 설정을 JSON으로 출력 |
@@ -70,6 +70,8 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
 Windows는 `.exe`를 사용합니다. Mac 빌드 명령만으로 Windows 배포 파일까지 생성되지는 않습니다.
 Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --workspace` 등도 직접 사용할 수 있습니다.
+`Cargo.lock`은 버전 관리에 포함하며 검사·테스트·실행·릴리스 빌드는 `--locked`를 사용합니다.
+의존성을 바꿀 때는 `setup`으로 lockfile을 갱신하고 변경 내역을 함께 리뷰합니다.
 
 ## 코드 위치
 
@@ -89,8 +91,8 @@ docs/                  설계, 인터페이스, 검증 기록
 
 ## 확인된 상태
 
-2026-10-25 현재 로컬 Rust 도구 1.99.0과 `doctor` 통과가 확인되었습니다.
-기존 `target/debug` CLI의 `info`·`viewport` 응답도 확인했습니다.
-이는 현재 소스의 재빌드·전체 테스트·GUI 실행을 확인한 결과는 아닙니다.
+2026-10-25 macOS ARM64의 격리 작업 폴더에서 현재 소스의 포맷·Clippy·Rust 테스트 8개·
+workspace 빌드·CLI 계약 5개를 확인했습니다. GitHub Actions에는 macOS ARM64와 Windows x64
+검사를 구성했습니다. CI 결과와 실제 창 출력 검증은 별도로 기록합니다.
 GUI 에디터, 프로젝트 저장 형식, 공통 편집 명령과 MCP 서버는 아직 구현 전입니다.
-다음 기반 PR에서 기존 코드와 lockfile을 검증하면서 첫 GUI 셸 작업을 준비합니다.
+다음 단계는 첫 GUI 셸입니다.
