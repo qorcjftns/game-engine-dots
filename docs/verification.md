@@ -27,7 +27,7 @@ Rust 1.99.0 도구 체인과 기존에 다운로드된 의존성을 사용했습
 | 새 빌드 CLI 계약 | 정상 응답·잘못된 입력 처리 5개 통과 |
 | GUI 에디터 | 아직 구현 전 |
 | macOS 실제 렌더링·입력 | 이번 확인에서 검증하지 않음 |
-| Windows 빌드·실행 | CI에 빌드·테스트 구성, 원격 실행 결과와 실제 창 출력은 아직 미확인 |
+| Windows 빌드·테스트 | windows-2025 원격 CI 통과. 실제 창 출력은 아직 미확인 |
 | Cargo.lock | 원본 미추적 파일을 보존하고 동일 내용을 복사. `--locked` 검사 중 변경 없음 |
 
 기존 바이너리의 응답 확인과 별도로, 이번에는 현재 소스를 빌드한 CLI의 계약 검사까지 실행했습니다.
@@ -62,8 +62,9 @@ checkout v7.0.1과 setup-python v7.1.0은 공식 태그의 commit SHA로 고정�
 
 최초 원격 CI에서 macOS 검사는 통과했고, Windows는 Python의 cp1252 출력 인코딩으로
 한국어 설치 안내를 출력하다 실패했습니다. 개발 스크립트의 stdout·stderr를 UTF-8로 고정해
-수정하고, 로컬에서 `PYTHONIOENCODING=cp1252` 상태의 doctor·도움말 출력을 확인합니다.
-수정 후 Windows CI 결과는 별도로 확인합니다.
+수정하고, 로컬에서 `PYTHONIOENCODING=cp1252` 상태의 doctor·도움말·파이프·파일 리다이렉션·오류 출력을 확인했습니다.
+수정 커밋 `e7a54aa`의 [원격 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40181094238)는
+macOS ARM64와 Windows x64에서 모두 통과했습니다.
 
 ## 다음 단계의 확인 항목
 
