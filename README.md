@@ -28,7 +28,8 @@ GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안�
 ## 현재 구성과 예정 구성
 
 ```text
-crates/engine-core/     현재: 화면 배치·시간 계산, 향후 공통 문서·편집 명령
+crates/engine-core/     현재: 화면 배치·시간 계산
+crates/engine-document/ 현재: 프로젝트 문서·PNG 가져오기·편집 명령·저장·undo/redo
 crates/engine-desktop/  현재: Macroquad 출력 검증 데모
 crates/engine-editor/   현재: GUI 에디터의 기본 창·패널·게임 뷰포트
 crates/engine-cli/      현재: 설정 조회·화면 배치 계산 JSON 명령
@@ -80,6 +81,7 @@ Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --wo
 
 ```text
 crates/engine-core/     창 없이 쓸 수 있는 화면 배치·시간 계산
+crates/engine-document/ GUI에 독립적인 프로젝트 문서·편집 명령·파일 처리
 crates/engine-desktop/  Macroquad를 통한 창·입력·픽셀 화면 데모
 crates/engine-editor/   GUI 에디터의 기본 창·패널·게임 뷰포트
 crates/engine-cli/      에이전트용 JSON 명령
@@ -98,5 +100,6 @@ docs/                  설계, 인터페이스, 검증 기록
 2026-10-25 macOS ARM64의 격리 작업 폴더에서 현재 소스의 포맷·Clippy·Rust 테스트 8개·
 workspace 빌드·CLI 계약 5개를 확인했습니다. GitHub Actions에는 macOS ARM64와 Windows x64
 검사를 구성했습니다. CI 결과와 실제 창 출력 검증은 별도로 기록합니다.
-GUI 에디터의 기본 창과 패널을 구현했습니다.
-프로젝트 저장 형식, 공통 편집 명령과 MCP 서버는 후속 단계입니다.
+GUI 에디터의 기본 창과 패널, GUI에 독립적인 프로젝트 문서와 편집 명령을 구현했습니다.
+PNG 가져오기·스프라이트 추가·속성 변경·저장/재열기·undo/redo는 문서 코어 API로 제공하며,
+GUI 연결과 MCP 서버는 후속 단계입니다.

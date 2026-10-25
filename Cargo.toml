@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/engine-core", "crates/engine-desktop", "crates/engine-cli", "crates/engine-editor"]
+members = [
+    "crates/engine-core",
+    "crates/engine-desktop",
+    "crates/engine-cli",
+    "crates/engine-editor",
+    "crates/engine-document",
+]
 default-members = ["crates/engine-core", "crates/engine-cli"]
 resolver = "3"
 
@@ -10,4 +16,5 @@ publish = false
 
 [workspace.dependencies]
 engine-core = { path = "crates/engine-core" }
+engine-document = { path = "crates/engine-document" }
 macroquad = { version = "=0.4.16", default-features = false }

@@ -88,3 +88,14 @@ Mac·Windows 모두 코드 검사·빌드는 통과했으나 저장소의 기존
 GUI 실행 명령은 `python3 scripts/dev.py editor`, 기존 출력 데모는 `run`입니다.
 exec 경로의 실행에서는 hiServices/WindowServer 연결 오류가 있어 실제 창·한국어·입력은
 별도 네이티브 UI 경로에서 확인해야 합니다. 빌드 성공을 실제 화면 검증으로 기록하지 않습니다.
+
+## 프로젝트 문서 코어 검증
+
+`engine-document`를 workspace에 연결하고 실제 공개 registry 캐시로 lockfile을 갱신했습니다.
+기존 의존성 버전은 유지하며 문서 크레이트와 필요한 JSON 패키지 항목만 추가됐습니다.
+macOS ARM64에서 전체 offline check가 통과했습니다: 기존 코어 8개, 문서 IO·편집 회귀 14개,
+문서 예제 doctest 1개, Clippy, 포맷, workspace 빌드, CLI 계약 5개입니다.
+
+문서 테스트는 한글 이름·PNG 픽셀 보존·편집/undo/redo·dirty 상태·저장/재열기,
+중복 ID·없는 참조·안전하지 않은 경로·잘린 PNG 거부, 외부 수정과 저장 실패 시 기존 파일 보호를 확인합니다.
+GUI 타입이나 MCP 전송에 의존하지 않는 API이며, 이 단계에서는 GUI 버튼에 아직 연결하지 않았습니다.
