@@ -1,48 +1,53 @@
-# 초기 검증 기록
+# 개발 기반과 계획 검증 기록
 
-기준일: 2026-10-25. macOS ARM64 개발 환경에서 확인했습니다.
+기준일: 2026-10-25. macOS ARM64 환경입니다.
+소스 작성·도구 확인·기존 바이너리 실행·현재 소스 빌드·화면 확인을 구분합니다.
 
-## 확인한 것
+## 초기 환경 확인 이력
 
-| 항목 | 결과 |
+초기에는 Rust 도구가 없었고 공식 다운로드 서버의 DNS 조회가 실패했습니다.
+당시 설치 오류는 `nodename nor servname provided, or not known`, curl 오류는
+`Could not resolve host: static.rust-lang.org`였습니다.
+Python 3.14.8, Apple clang 21.0.0과 설정 파일 문법·개발 명령의 기본 처리를 확인했습니다.
+이 기록은 과거 상태이며 현재 도구 설치 상태를 뜻하지 않습니다.
+
+## 현재 readiness 확인 결과
+
+다음 결과는 기반 검토 담당의 확인을 전달받아 기록합니다. 이 문서 작성 작업에서는 설치·빌드하지 않았습니다.
+
+| 항목 | 현재 확인 범위 |
 | --- | --- |
-| 기존 루트 AGENTS.md | 존재 확인. 수정하지 않음 |
-| 기존 저장소 | 소스·빌드 설정·Git 이력 없음 |
-| Python | 3.14.8 설치 확인 |
-| Apple clang | 21.0.0 설치 확인 |
-| Rust 도구 | rustup·rustc·cargo·rustfmt·cargo-clippy 없음 |
-| Cargo·도구 설정 파일 | Python tomllib로 TOML 문법 확인 |
-| 개발 스크립트 | Python AST 문법 검사 및 도움말 실행 확인 |
-| 개발 명령 인자 | 도움말·인자 누락·불필요한 인자 처리 3건 확인 |
-| 문서 연결 | README·설계 문서의 로컬 링크 대상 확인 |
-| doctor 실행 | 누락된 Rust 도구를 나열하고 오류 종료하는 동작 확인 |
-| setup 실행 | 공식 설치기 URL까지 진행 후 DNS 조회 실패. Rust는 설치되지 않음 |
-| check 실행 | Rust 미설치 안내 후 종료. 실제 검사 단계는 실행되지 않음 |
+| 로컬 Rust 도구 | Rust 1.99.0 도구 체인과 rustc·cargo·rustfmt·Clippy 구성 요소 존재 |
+| doctor | 통과 |
+| 기존 target/debug CLI | info·viewport 정상 JSON 응답 |
+| 현재 소스 재빌드 | 이번 확인에서 실행하지 않음 |
+| 현재 소스 전체 테스트·Clippy·포맷 | 이번 확인에서 실행하지 않음 |
+| GUI 에디터 | 아직 구현 전 |
+| macOS 실제 렌더링·입력 | 이번 확인에서 검증하지 않음 |
+| Windows 빌드·실행 | 이번 확인에서 검증하지 않음 |
+| Cargo.lock | 원본 작업 폴더의 기존 미추적 파일 보존. 별도 기반 PR에서 검토 예정 |
 
-설치 실패 메시지: `nodename nor servname provided, or not known`.
-별도의 curl 요청도 `Could not resolve host: static.rust-lang.org`로 실패했습니다.
-따라서 Rust 설치 완료나 실행 가능한 엔진이 준비됐다고 판단할 수 없습니다.
+기존 바이너리 응답은 현재 소스와 동일한 결과물임을 보장하지 않습니다.
+코어 테스트 8개와 CLI 계약 검사 5개는 소스에 존재하지만 현재 소스 검사 통과로 기록하지 않습니다.
 
-## 작성했지만 실행하지 못한 것
+## 이번 계획 문서 변경
 
-- Rust 코어 테스트 8개: 정수 배율·중앙 배치·최소 크기·고정 틱·긴 정지·잘못된 시간
-- CLI 프로세스 계약 검사 5개: info·viewport 정상 응답, 작은 창·잘못된 크기·알 수 없는 명령
-- rustfmt·Clippy 검사, workspace 빌드
-- 실제 macOS 창 출력과 키 입력, Windows 빌드와 실행
+GUI 에디터를 제품의 중심으로 재정의하고, GUI 셸 → 문서/명령·저장/열기 → PNG 배치 →
+선택·속성·드래그 → undo/redo·미저장 보호 순서로 정리합니다.
+GUI는 OS의 DPI 배율을 따르고, 게임 뷰포트의 콘텐츠만 논리 해상도를 사용합니다.
+엔진 소스·manifest·Cargo.lock은 이번 계획 변경에 포함하지 않습니다.
 
-문법 설정 검사는 Rust 컴파일이나 실제 렌더링 검증을 대신하지 않습니다.
+문서의 로컬 링크와 git diff 공백 검사를 수행하며 결과는 PR에 기록합니다.
+빌드·실제 창 출력·Windows 검증은 이 문서 검사로 대신하지 않습니다.
 
-## 설치가 가능한 환경에서 이어가기
+## 다음 기반 PR의 확인 항목
 
 ```sh
-python3 scripts/dev.py setup
 python3 scripts/dev.py doctor
-python3 scripts/dev.py fmt
 python3 scripts/dev.py check
-python3 scripts/dev.py run
 ```
 
-`setup` 성공 후 생성된 Cargo.lock을 버전 관리에 포함하고,
-실행 환경·명령·종료 코드·실제 화면 결과를 이 문서에 추가합니다.
-Windows에서는 `py -3`를 사용해 같은 순서로 확인합니다.
-MCP 서버는 아직 구현하지 않았으므로 연결 검증 대상도 아닙니다.
+현재 소스를 대상으로 검사하고 lockfile과 macOS·Windows CI를 검토합니다.
+필요한 포맷 수정은 해당 기반 PR에서 처리합니다.
+실제 GUI가 추가되면 운영체제·화면 크기·DPI·입력·저장/재열기 결과와 캡처를 기록합니다.
+Windows에서는 `py -3`를 사용합니다. MCP는 구현 이후 초기화·목록·호출을 따로 검증합니다.
