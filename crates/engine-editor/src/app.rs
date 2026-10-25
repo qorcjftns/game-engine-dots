@@ -1,11 +1,14 @@
-//! GUI 셸. 프로젝트 문서와 편집 명령은 후속 단계에서 연결한다.
+//! 프로젝트와 편집 문서를 표시하는 GUI. 실제 변경은 편집 세션의 명령을 사용한다.
 
 use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Stroke, StrokeKind, Vec2};
 use engine_core::{LOGICAL_HEIGHT, LOGICAL_WIDTH, viewport::Viewport};
 
+use crate::project_workflow::ProjectWorkspace;
+
 const ACCENT: Color32 = Color32::from_rgb(127, 188, 172);
 
 pub struct EditorApp {
+    workspace: ProjectWorkspace,
     show_scene: bool,
     show_inspector: bool,
     show_resources: bool,
@@ -15,6 +18,7 @@ pub struct EditorApp {
 impl EditorApp {
     pub fn new(_creation: &eframe::CreationContext<'_>) -> Self {
         Self {
+            workspace: ProjectWorkspace::default(),
             show_scene: true,
             show_inspector: true,
             show_resources: true,
@@ -30,12 +34,28 @@ impl EditorApp {
                     ui.label(RichText::new("ENGINE-1").strong().color(ACCENT));
                     ui.separator();
                     ui.menu_button("파일", |ui| {
-                        ui.add_enabled(false, egui::Button::new("새 프로젝트…"));
-                        ui.add_enabled(false, egui::Button::new("프로젝트 열기…"));
-                        ui.add_enabled(false, egui::Button::new("저장"));
-                        ui.small("프로젝트 기능은 다음 단계에서 연결합니다.");
+                        if ui.button("새 프로젝트…").clicked() {
+                            self.workspace.request_new_project();
+                            ui.close();
+                        }
+                        if ui.button("프로젝트 열기…").clicked() {
+                            self.workspace.open_project(ui.ctx());
+                            ui.close();
+                        }
+                        if ui
+                            .add_enabled(
+                                self.workspace.session.is_some(),
+                                egui::Button::new("저장"),
+                            )
+                            .clicked()
+                        {
+                            self.workspace.save_project();
+                            ui.close();
+                        }
                         ui.separator();
-                        if ui.button("에디터 종료").clicked() {
+                        if ui.button("에디터 종료").clicked()
+                            && self.workspace.allow_close_or_replace()
+                        {
                             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
@@ -65,9 +85,21 @@ impl EditorApp {
             .resizable(false)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("프로젝트 없음").strong());
-                    ui.separator();
-                    ui.weak("아직 열린 장면이 없습니다");
+                    if let Some(session) = &self.workspace.session {
+                        ui.label(RichText::new(&session.document().name).strong());
+                        if session.is_dirty() {
+                            ui.label(RichText::new("● 미저장 변경").color(ACCENT));
+                        }
+                        ui.separator();
+                        ui.weak(format!(
+                            "개체 {}개",
+                            session.document().scene.entities.len()
+                        ));
+                    } else {
+                        ui.label(RichText::new("프로젝트 없음").strong());
+                        ui.separator();
+                        ui.weak("파일 메뉴에서 프로젝트를 생성하거나 여세요");
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_enabled(false, egui::Button::new("플레이"))
                             .on_hover_text("플레이 미리보기는 아직 연결되지 않았습니다.");
@@ -82,9 +114,7 @@ impl EditorApp {
             .resizable(false)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.small("GUI 셸 · 프로젝트 기능 연결 전");
-                    ui.separator();
-                    ui.small("macOS / Windows");
+                    ui.small(&self.workspace.status);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.small(format!(
                             "UI 배율 {:.0}%",
@@ -103,9 +133,26 @@ impl EditorApp {
                 .show(ui, |ui| {
                     panel_heading(ui, "장면", "SCENE");
                     ui.add_space(14.0);
-                    ui.weak("열린 장면 없음");
-                    ui.add_space(6.0);
-                    ui.small("프로젝트를 열면 개체 목록이 표시됩니다.");
+                    if let Some(session) = &self.workspace.session {
+                        if session.document().scene.entities.is_empty() {
+                            ui.weak("빈 장면");
+                            ui.small("PNG 리소스를 가져와 장면에 배치하세요.");
+                        }
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            for entity in &session.document().scene.entities {
+                                ui.label(&entity.name);
+                                ui.small(format!(
+                                    "위치 {}, {}",
+                                    entity.position.x, entity.position.y
+                                ));
+                                ui.separator();
+                            }
+                        });
+                    } else {
+                        ui.weak("열린 장면 없음");
+                        ui.add_space(6.0);
+                        ui.small("프로젝트를 열면 개체 목록이 표시됩니다.");
+                    }
                 });
         }
     }
@@ -118,38 +165,114 @@ impl EditorApp {
                 .show(ui, |ui| {
                     panel_heading(ui, "속성", "INSPECTOR");
                     ui.add_space(14.0);
-                    ui.weak("선택한 개체 없음");
-                    ui.add_space(6.0);
-                    ui.small("개체의 이름과 위치 등 편집 속성이 표시될 영역입니다.");
+                    if let Some(session) = &self.workspace.session {
+                        let document = session.document();
+                        ui.strong("프로젝트");
+                        ui.label(&document.name);
+                        ui.label(format!(
+                            "논리 화면 {} × {}",
+                            document.logical_width, document.logical_height
+                        ));
+                        ui.label(format!("PNG 리소스 {}개", document.assets.len()));
+                        ui.add_space(10.0);
+                        ui.weak("개체 선택과 속성 편집은 다음 단계에서 연결합니다.");
+                    } else {
+                        ui.weak("선택한 개체 없음");
+                        ui.add_space(6.0);
+                        ui.small("프로젝트를 열면 문서 속성이 표시됩니다.");
+                    }
                 });
         }
     }
 
-    fn resource_panel(&self, ui: &mut egui::Ui) {
+    fn resource_panel(&mut self, ui: &mut egui::Ui) {
         if self.show_resources {
             egui::Panel::bottom("editor_resources")
-                .default_size(160.0)
+                .default_size(190.0)
                 .size_range(100.0..=320.0)
                 .show(ui, |ui| {
                     panel_heading(ui, "리소스", "RESOURCES");
-                    ui.add_space(10.0);
-                    ui.horizontal(|ui| {
-                        ui.add_enabled(false, egui::Button::new("PNG 가져오기…"));
+                    if ui
+                        .add_enabled(
+                            self.workspace.session.is_some(),
+                            egui::Button::new("PNG 가져오기…"),
+                        )
+                        .clicked()
+                    {
+                        self.workspace.import_png(ui.ctx());
+                    }
+                    let assets = self
+                        .workspace
+                        .session
+                        .as_ref()
+                        .map(|session| session.document().assets.clone())
+                        .unwrap_or_default();
+                    if assets.is_empty() {
                         ui.weak("프로젝트 리소스가 없습니다.");
+                    }
+                    let mut add_asset = None;
+                    egui::ScrollArea::horizontal().show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            for asset in assets {
+                                ui.group(|ui| {
+                                    ui.set_width(120.0);
+                                    if let Some(texture) = self.workspace.textures.get(asset.id) {
+                                        let aspect = asset.width as f32 / asset.height as f32;
+                                        let size = Vec2::new(
+                                            36.0 * aspect.min(1.0),
+                                            36.0 / aspect.max(1.0),
+                                        );
+                                        ui.image((texture.id(), size));
+                                    }
+                                    ui.small(format!(
+                                        "PNG #{} · {}×{}",
+                                        asset.id.0, asset.width, asset.height
+                                    ));
+                                    if ui
+                                        .add_enabled(
+                                            self.workspace.textures.get(asset.id).is_some(),
+                                            egui::Button::new("장면에 배치"),
+                                        )
+                                        .clicked()
+                                    {
+                                        add_asset = Some(asset.id);
+                                    }
+                                });
+                            }
+                        });
                     });
-                    ui.add_space(6.0);
-                    ui.small("이미지 가져오기와 장면 배치는 프로젝트 기능과 함께 연결합니다.");
+                    if let Some(asset_id) = add_asset {
+                        self.workspace.add_sprite(asset_id);
+                    }
+                    for issue in &self.workspace.textures.issues {
+                        ui.colored_label(Color32::from_rgb(220, 110, 130), issue);
+                    }
                 });
         }
     }
 
-    fn viewport(&self, ui: &mut egui::Ui) {
+    fn viewport(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("게임 뷰포트").strong());
-                ui.weak(format!("기본 논리 화면 {LOGICAL_WIDTH} × {LOGICAL_HEIGHT}"));
+                if let Some(session) = &self.workspace.session {
+                    ui.weak(format!(
+                        "논리 화면 {} × {}",
+                        session.document().logical_width,
+                        session.document().logical_height
+                    ));
+                } else {
+                    ui.weak(format!("기본 논리 화면 {LOGICAL_WIDTH} × {LOGICAL_HEIGHT}"));
+                }
             });
             ui.separator();
+
+            if let Some(session) = &self.workspace.session {
+                self.workspace
+                    .preview
+                    .show(ui, session.document(), &self.workspace.textures);
+                return;
+            }
 
             let available = ui.available_size();
             let (response, painter) = ui.allocate_painter(available, Sense::hover());
@@ -202,6 +325,18 @@ impl EditorApp {
 
 impl eframe::App for EditorApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if ui.ctx().input(|input| input.viewport().close_requested())
+            && !self.workspace.allow_close_or_replace()
+        {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
+        if ui
+            .ctx()
+            .input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::S))
+        {
+            self.workspace.save_project();
+        }
         self.menu(ui);
         self.toolbar(ui);
         self.status_bar(ui);
@@ -209,6 +344,7 @@ impl eframe::App for EditorApp {
         self.inspector_panel(ui);
         self.resource_panel(ui);
         self.viewport(ui);
+        self.workspace.dialogs(ui.ctx());
 
         egui::Window::new("Engine-1 정보")
             .open(&mut self.show_about)
@@ -217,8 +353,9 @@ impl eframe::App for EditorApp {
                 ui.heading("Engine-1");
                 ui.label("GUI 게임 에디터와 자체 2D 도트 엔진");
                 ui.separator();
-                ui.label("현재는 패널 배치와 게임 뷰포트를 확인하는 GUI 셸입니다.");
-                ui.label("프로젝트 편집·저장·플레이 기능은 아직 연결되지 않았습니다.");
+                ui.label("프로젝트 생성·열기, PNG 가져오기·배치와 저장을 지원합니다.");
+                ui.label("미저장 변경이 있으면 프로젝트 전환과 종료를 차단합니다.");
+                ui.label("개체 속성 편집·실행 취소·플레이는 아직 연결되지 않았습니다.");
             });
     }
 }

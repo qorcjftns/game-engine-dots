@@ -1,6 +1,11 @@
 //! 게임 제작 도구의 시작점. 출력 검증 데모와 별도 실행 파일이다.
 
 mod app;
+mod canvas;
+mod new_project;
+mod project_workflow;
+mod raster;
+mod resources;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
