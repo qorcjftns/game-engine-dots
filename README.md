@@ -98,10 +98,12 @@ docs/                  설계, 인터페이스, 검증 기록
 ## 확인된 상태
 
 2026-10-25 macOS ARM64에서 현재 소스의 포맷·Clippy·Rust 테스트 40개와 doctest 1개·
-workspace 빌드·CLI 계약 5개를 확인했습니다. GitHub Actions에는 macOS ARM64와 Windows x64
-검사를 구성했습니다. 최종 편집 기능의 원격 CI와 실제 화면 결과는 검증 기록에서 별도로 확인합니다.
+workspace 빌드·CLI 계약 5개를 확인했습니다. 최종 편집 소스의 GitHub Actions는 macOS ARM64와 Windows x64 모두 통과했습니다.
+실제 macOS/Retina 200%에서 PNG 배치·한글 개체 이름·좌표 수정·드래그·undo/redo·저장·재열기와
+Cmd+Q의 저장·취소와 창 닫기의 변경 버리기를 확인했습니다. 상세 근거는 [검증 기록](docs/verification.md)에 있습니다.
 GUI에 프로젝트 생성·열기, PNG 가져오기와 장면 배치, 개체 선택·속성·드래그·undo/redo와 저장·재열기를 연결했습니다.
-MCP 서버는 아직 구현 전입니다.
+Windows의 실제 GUI 실행과 DPI별 화면은 아직 확인하지 않았습니다.
+CLI는 설정·표시 영역 조회만 제공하며 문서 편집 명령과 MCP 서버는 구현 전입니다.
 
 ## 현재 GUI에서 시도할 흐름
 
