@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/engine-core", "crates/engine-desktop", "crates/engine-cli"]
+members = ["crates/engine-core", "crates/engine-desktop", "crates/engine-cli", "crates/engine-editor"]
 default-members = ["crates/engine-core", "crates/engine-cli"]
 resolver = "3"
 
