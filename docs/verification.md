@@ -213,3 +213,17 @@ locked build, 기존 CLI 계약 5건·디스크 읽기 CLI 10건도 통과했습
 원격 검사 결과와 별도 macOS QA 앱의 실제 화면/종료 확인은 확인 후 추가합니다.
 
 live 변경·중복 요청 결과·MCP stdio는 후속 PR 범위입니다.
+
+첫 PR2 CI는 양 OS에서 slow-drip 회귀의 EOF 가정 때문에 실패했습니다.
+서버의 전체 기한이 지난 뒤 테스트가 추가 송신하여 발생한 TCP reset/aborted를 허용하지 않았습니다.
+수정 검사는 실제 닫힘까지의 1.8~4초 상·하한, 추가 송신 없는 frame의 구조화된 기한 오류,
+새 연결 조회 성공과 bounded 종료를 유지합니다. 로컬에서는 socket 실행 대신 테스트 컴파일을 확인하고
+실제 수정 결과는 후속 CI에서 확인합니다.
+
+별도 앱 `dev.engine1.editor.m2review` 버전 1의 macOS/Retina 200% 실제 UI를 확인했습니다.
+opt-in 연결 표시와 연결 파일 존재·0600 권한, native Open으로 프로젝트/PNG 표시,
+한글 이름 입력 후 Cmd+S 저장, 메뉴 undo의 dirty와 redo의 clean 복원을 확인했습니다.
+이름 draft를 입력한 Cmd+Q에서 취소하면 초안이 보존됐고, 다시 ‘변경 버리기’로 종료한 뒤
+앱 inventory에 프로세스가 없고 연결 파일도 삭제된 것을 확인했습니다.
+독립 파일 검사에서 마지막 저장 이름 ‘M2 연결 중 저장 검토’가 유지되고 ‘M2 버릴 초안’은 없었습니다.
+최소화 동작과 실제 GUI↔CLI 교차 조회, Windows native/DPI는 이번 UI 확인에 포함하지 않습니다.

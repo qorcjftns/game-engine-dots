@@ -73,18 +73,47 @@ fn tcp_partial_frame_has_total_deadline_and_shutdown_discards_queue() {
         .set_read_timeout(Some(Duration::from_secs(4)))
         .unwrap();
     let started = Instant::now();
-    // 바이트가 계속 와도 frame 전체 기한은 갱신되지 않습니다.
-    for _ in 0..6 {
-        let _ = stream.write_all(b" ");
-        std::thread::sleep(Duration::from_millis(400));
-    }
+    // 수신과 별도로 계속 송신하여 총 기한이 각 read마다 연장되는 회귀를 잡습니다.
+    let sending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let sender_flag = sending.clone();
+    let mut writer = stream.try_clone().unwrap();
+    let writer_thread = std::thread::spawn(move || {
+        while sender_flag.load(std::sync::atomic::Ordering::Acquire) {
+            if writer.write_all(b" ").is_err() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(300));
+        }
+    });
     let mut response = String::new();
-    stream.read_to_string(&mut response).unwrap();
-    assert_eq!(
-        code(serde_json::from_str(&response).unwrap()),
-        ErrorCode::ControlIo
+    let result = stream.read_to_string(&mut response);
+    let elapsed = started.elapsed();
+    sending.store(false, std::sync::atomic::Ordering::Release);
+    writer_thread.join().unwrap();
+    assert!(
+        elapsed >= Duration::from_millis(1800),
+        "frame 기한 전에 닫혔습니다: {elapsed:?}"
     );
-    assert!(started.elapsed() < Duration::from_secs(4));
+    assert!(
+        elapsed < Duration::from_secs(4),
+        "slow-drip이 기한을 연장했습니다: {elapsed:?}"
+    );
+    match result {
+        Ok(_) => assert_eq!(
+            code(serde_json::from_str(&response).unwrap()),
+            ErrorCode::ControlIo
+        ),
+        Err(error) => assert!(
+            matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+            ),
+            "{error}"
+        ),
+    }
+    // 추가 송신 없는 불완전 frame은 작은 구조화 기한 오류로 응답해야 합니다.
+    assert_eq!(code(raw(&path, b" ")), ErrorCode::ControlIo);
+    assert!(inspect_connection_file(&path).is_ok());
     let clients: Vec<_> = (0..12)
         .map(|_| TcpStream::connect(&address).unwrap())
         .collect();
