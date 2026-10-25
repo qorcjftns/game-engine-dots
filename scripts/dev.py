@@ -141,7 +141,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["setup", "doctor", "fmt", "check", "test", "run", "info", "viewport", "build"],
+        choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport", "build"],
     )
     parser.add_argument("arguments", nargs="*")
     arguments = parser.parse_args()
@@ -164,6 +164,8 @@ def main():
         smoke_cli()
     elif arguments.command == "test":
         cargo("test", "--locked", "--workspace")
+    elif arguments.command == "editor":
+        cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":
         cargo("run", "--locked", "-p", "engine-desktop")
     elif arguments.command in ["info", "viewport"]:

@@ -70,3 +70,21 @@ macOS ARM64와 Windows x64에서 모두 통과했습니다.
 
 실제 GUI가 추가되면 운영체제·화면 크기·DPI·입력·저장/재열기 결과와 캡처를 기록합니다.
 Windows에서는 `py -3`를 사용합니다. MCP는 구현 이후 초기화·목록·호출을 따로 검증합니다.
+
+## GUI 셸 검증
+
+`engine-editor`에 eframe 0.37.0/wgpu 기본 창과 패널을 추가했습니다.
+로컬 crates.io DNS 조회가 제한돼, 정상 GitHub Actions에서 공식 Cargo로 의존성을 해석하고 빌드했습니다.
+[초기 bootstrap](https://github.com/qorcjftns/game-engine-dots/actions/runs/40181487281)의
+Mac 검사·빌드가 통과했고, [일반 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40181487335)는
+Mac·Windows 모두 코드 검사·빌드는 통과했으나 저장소의 기존 lockfile 차이를 검출했습니다.
+
+원격에서 실제 생성한 Cargo.lock을 반영하고, 공개 Cargo registry 데이터만 내려받아
+절대 경로·상위 경로 이동·링크가 없는지 검사한 뒤 격리 작업 폴더의 캐시에 복원했습니다.
+인증 파일이나 전체 Cargo 홈은 업로드·복원하지 않았으며 원본 작업 폴더는 보존했습니다.
+이후 GUI를 포함한 로컬 `CARGO_NET_OFFLINE=true python3 scripts/dev.py check`가 통과했습니다.
+임시 bootstrap workflow는 제거하고 일반 `--locked` CI를 유지합니다.
+
+GUI 실행 명령은 `python3 scripts/dev.py editor`, 기존 출력 데모는 `run`입니다.
+exec 경로의 실행에서는 hiServices/WindowServer 연결 오류가 있어 실제 창·한국어·입력은
+별도 네이티브 UI 경로에서 확인해야 합니다. 빌드 성공을 실제 화면 검증으로 기록하지 않습니다.
