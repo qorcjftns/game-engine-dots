@@ -116,7 +116,7 @@ impl EditorApp {
         let Some(session) = &mut self.workspace.session else {
             return false;
         };
-        match session.execute(command) {
+        let success = match session.execute(command) {
             Ok(_) => {
                 self.workspace.status = "편집 내용을 변경했습니다. 저장하여 보존하세요.".into();
                 true
@@ -125,7 +125,9 @@ impl EditorApp {
                 self.workspace.error = Some(error.to_string());
                 false
             }
-        }
+        };
+        self.publish_live(false);
+        success
     }
 
     pub(crate) fn synchronize_selection(&mut self) {
@@ -143,7 +145,7 @@ impl EditorApp {
             EditorAction::Quit => self.request_transition(context, Transition::Quit),
             EditorAction::Save => {
                 if self.commit_edits() {
-                    self.workspace.save_project();
+                    self.save_with_publication();
                 }
             }
             EditorAction::ResetDraft => self.synchronize_selection(),
@@ -152,9 +154,20 @@ impl EditorApp {
                     return;
                 }
                 match action {
-                    EditorAction::ImportPng => self.workspace.import_png(context),
+                    EditorAction::ImportPng => {
+                        self.begin_native_io();
+                        if self.workspace.import_png() {
+                            //  새 문서를 먼저 게시하고 이후 디스크에서 텍스처를 읽는다.
+                            self.publish_live(true);
+                            if let Some(session) = &self.workspace.session {
+                                self.workspace.textures.reload(context, session);
+                            }
+                        }
+                        self.end_native_io();
+                    }
                     EditorAction::AddSprite(asset_id) => {
                         self.editing.selected = self.workspace.add_sprite(asset_id);
+                        self.publish_live(false);
                         self.synchronize_selection();
                     }
                     EditorAction::Select(id) => {
@@ -177,12 +190,11 @@ impl EditorApp {
     }
 
     fn history_step(&mut self, context: &egui::Context, redo: bool) {
+        let mut reload_assets = false;
         if let Some(session) = &mut self.workspace.session {
             let old_assets = session.document().assets.clone();
             let changed = if redo { session.redo() } else { session.undo() };
-            if changed && old_assets != session.document().assets {
-                self.workspace.textures.reload(context, session);
-            }
+            reload_assets = changed && old_assets != session.document().assets;
             self.workspace.status = if redo {
                 "다시 실행했습니다."
             } else {
@@ -190,7 +202,23 @@ impl EditorApp {
             }
             .into();
         }
+        self.publish_live(reload_assets);
+        if reload_assets {
+            self.begin_native_io();
+            if let Some(session) = &self.workspace.session {
+                self.workspace.textures.reload(context, session);
+            }
+            self.end_native_io();
+        }
         self.synchronize_selection();
+        self.publish_live(false);
+    }
+
+    fn save_with_publication(&mut self) -> bool {
+        self.begin_native_io();
+        let saved = self.workspace.save_project();
+        self.end_native_io();
+        saved
     }
 
     fn request_transition(&mut self, context: &egui::Context, transition: Transition) {
@@ -205,7 +233,11 @@ impl EditorApp {
     fn perform_transition(&mut self, context: &egui::Context, transition: Transition) {
         match transition {
             Transition::NewProject => self.workspace.request_new_project(),
-            Transition::OpenProject => self.workspace.open_project(context),
+            Transition::OpenProject => {
+                self.begin_native_io();
+                self.workspace.open_project(context);
+                self.end_native_io();
+            }
             Transition::Quit => {
                 self.close_approved = true;
                 context.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -219,7 +251,7 @@ impl EditorApp {
         };
         match choice {
             Confirmation::Save => {
-                if !self.commit_edits() || !self.workspace.save_project() {
+                if !self.commit_edits() || !self.save_with_publication() {
                     return;
                 }
                 self.pending_transition = None;

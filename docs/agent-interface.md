@@ -1,14 +1,15 @@
 # GUI·CLI·MCP 접근 규약
 
 전체 v1 범위·순서·인수 조건은 [개발계획](roadmap.md)을 기준으로 합니다.
-현재 CLI는 info·viewport와 저장된 프로젝트/장면의 읽기 전용 조회를 지원합니다.
-live 편집·MCP와 이후 접점은 아직 계획입니다.
+현재 CLI는 info·viewport, 저장된 프로젝트/장면 조회와 opt-in GUI live 조회를 지원합니다.
+live 변경·MCP와 이후 접점은 아직 계획입니다.
 
 ```sh
 target/debug/engine-cli info
 target/debug/engine-cli viewport 1001 701
 target/debug/engine-cli project inspect "내 프로젝트/project.json"
 target/debug/engine-cli scene inspect "내 프로젝트/project.json"
+target/debug/engine-cli session inspect --connection-file "/사용자/외부경로/editor-connection.json"
 ```
 
 Windows 실행 파일은 `.exe`를 사용합니다. 현재 계약은 stdout JSON 한 건, 진단 로그 stderr,
@@ -24,12 +25,34 @@ Windows 실행 파일은 `.exe`를 사용합니다. 현재 계약은 stdout JSON
 잘못된 JSON·미지원 형식 버전·모델 오류는 `invalid_project`로 묶고 이유를 message에 표시합니다. 실패 종료는 2입니다.
 기존 info·viewport와 그 외 legacy 오류의 `schema_version`/`ok` 출력 계약은 바꾸지 않습니다.
 
+## 현재 live 조회 계약
+
+GUI를 `--agent-control --connection-file FILE`로 명시 실행하면 IPv4 loopback의 임시 포트만 엽니다.
+파일은 프로젝트 외부 사용자 전용 경로에 두며 기존 파일은 덮어쓰지 않습니다.
+비밀 token을 포함하므로 Git·로그·응답에 복사하지 않습니다. 정상 종료는 자신이 만든 연결 파일만 지웁니다.
+비정상 종료 후 남은 파일은 재연결 성공을 뜻하지 않습니다. 기존 인스턴스를 확인한 뒤 별도 경로를 선택합니다.
+
+`session inspect`는 `protocol_version: 1`, `source: "live"`로 응답합니다.
+`data`는 `session_id`, 단조 `revision`, `busy`, `is_dirty`, `can_undo`, `can_redo`,
+`project`(없으면 null, 있으면 `project_file`·확정 `document`)입니다.
+저장하지 않은 확정 변경은 포함하고 TextEdit draft·드래그 미리보기는 제외합니다.
+조회는 파일을 다시 열거나 PNG를 디코딩하지 않으며 busy 중에도 마지막 게시 상태를 반환합니다.
+문서가 바뀌면 undo/redo도 revision을 증가시키고 저장·busy 전환은 증가시키지 않습니다.
+재열기·프로젝트 교체·재시작은 새 session ID가 됩니다.
+
+JSONL 한 요청/응답 뒤 연결을 닫습니다. 요청 8 KiB·응답 4 MiB, frame 전체 읽기/쓰기 기한 2초,
+작업 스레드 4개·대기 연결 8개로 제한합니다. 초과 요청은 `request_too_large`, 큰 응답은
+`response_too_large`, 포화는 `server_busy`입니다. 연결/기한 실패는 `control_io`, 잘못된 연결 파일은
+`invalid_connection_file`, 인증은 `unauthorized`, 메시지는 `invalid_request`, 버전은 `unsupported_protocol`입니다.
+이 단계는 조회만 지원하며 편집 요청을 받지 않습니다. 전체 TCP 회귀는 두 OS CI에서 필수 실행하고,
+소켓이 제한된 로컬 부분 검사는 실제 TCP·native GUI 교차 확인과 구분해 기록합니다.
+
 ## M2: 같은 편집 세션 사용
 
 도입 순서는 읽기 전용 디스크 검사/조회 → GUI live 조회 → 기존 편집·undo/redo·저장 CLI →
 [공식 Rust MCP SDK rmcp](https://github.com/modelcontextprotocol/rust-sdk)의 stdio 어댑터입니다.
 GUI 하나가 연 프로젝트 하나를 대상으로 하며 CLI·MCP가 별도 문서를 만들어 파일을 덮어쓰지 않습니다.
-구체적인 통신 방법·SDK 버전·별도 크레이트 수는 구현 때 검증합니다.
+후속 변경·MCP의 SDK와 세부 계약은 구현 때 검증합니다.
 
 조회 결과에서 저장 파일인지 실행 중인 문서인지 구분합니다.
 입력·드래그·대화상자 중에도 읽기는 확정 문서·revision·busy 상태를 반환하고,

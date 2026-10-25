@@ -77,22 +77,25 @@ impl ProjectWorkspace {
         }
     }
 
-    pub fn import_png(&mut self, context: &egui::Context) {
+    pub fn import_png(&mut self) -> bool {
         let Some(session) = &mut self.session else {
-            return;
+            return false;
         };
         let Some(path) = rfd::FileDialog::new()
             .add_filter("PNG 이미지", &["png"])
             .pick_file()
         else {
-            return;
+            return false;
         };
         match session.import_png(&path) {
             Ok(_) => {
-                self.textures.reload(context, session);
                 self.status = "PNG를 가져왔습니다. 리소스의 ‘장면에 배치’를 눌러 주세요.".into();
+                true
             }
-            Err(error) => self.error = Some(error.to_string()),
+            Err(error) => {
+                self.error = Some(error.to_string());
+                false
+            }
         }
     }
 

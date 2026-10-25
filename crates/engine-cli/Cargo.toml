@@ -6,7 +6,11 @@ publish.workspace = true
 
 [dependencies]
 engine-core.workspace = true
+engine-control.workspace = true
 engine-document.workspace = true
 engine-protocol.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

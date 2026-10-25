@@ -6,9 +6,22 @@ use engine_core::{LOGICAL_HEIGHT, LOGICAL_WIDTH, TICKS_PER_SECOND, viewport::Vie
 use engine_protocol::{ApiResponse, DataSource};
 
 mod inspect;
+mod live;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
+    if arguments
+        .first()
+        .is_some_and(|command| command == "session")
+    {
+        return match live::run(&arguments) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                print_response(ApiResponse::<()>::failure(DataSource::Live, error));
+                ExitCode::from(2)
+            }
+        };
+    }
     if arguments
         .first()
         .is_some_and(|command| command == "project" || command == "scene")

@@ -1,5 +1,6 @@
 //! 게임 제작 도구의 시작점. 출력 검증 데모와 별도 실행 파일이다.
 
+mod agent_control;
 mod app;
 mod canvas;
 mod canvas_input;
@@ -11,11 +12,23 @@ mod platform;
 mod project_workflow;
 mod raster;
 mod resources;
+mod startup;
 
 #[cfg(test)]
 mod editing_tests;
 
 fn main() -> eframe::Result {
+    let control = match startup::parse(std::env::args_os().skip(1)) {
+        Ok(startup::Startup::Run(options)) => options,
+        Ok(startup::Startup::Help) => {
+            eprintln!("{}", startup::USAGE);
+            return Ok(());
+        }
+        Err(error) => {
+            eprintln!("{error}\n{}", startup::USAGE);
+            std::process::exit(2);
+        }
+    };
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("Engine-1 · 2D 게임 에디터")
@@ -31,6 +44,10 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Engine-1 · 2D 게임 에디터",
         options,
-        Box::new(|creation| Ok(Box::new(app::EditorApp::new(creation)))),
+        Box::new(move |creation| {
+            let mut app = app::EditorApp::new(creation);
+            app.start_agent_control(&creation.egui_ctx, control);
+            Ok(Box::new(app))
+        }),
     )
 }

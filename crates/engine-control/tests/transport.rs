@@ -1,0 +1,130 @@
+use engine_control::{QueryServer, SessionTracker, inspect_connection_file};
+use engine_protocol::{ApiResponse, ErrorCode, LiveInspection};
+use std::{
+    io::{Read, Write},
+    net::TcpStream,
+    time::{Duration, Instant},
+};
+
+fn address(path: &std::path::Path) -> (String, String) {
+    let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    (
+        value["address"].as_str().unwrap().into(),
+        value["token"].as_str().unwrap().into(),
+    )
+}
+fn raw(path: &std::path::Path, bytes: &[u8]) -> ApiResponse<LiveInspection> {
+    let (address, _) = address(path);
+    let mut stream = TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(4)))
+        .unwrap();
+    stream.write_all(bytes).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    serde_json::from_str(&response).unwrap()
+}
+fn code(response: ApiResponse<LiveInspection>) -> ErrorCode {
+    match response {
+        ApiResponse::Error { error, .. } => error.code,
+        _ => panic!("expected error"),
+    }
+}
+#[test]
+fn tcp_inspection_auth_validation_and_owned_file_cleanup() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("한글 연결.json");
+    let server = QueryServer::start(&path).unwrap();
+    let mut tracker = SessionTracker::new().unwrap();
+    let snapshot = tracker.observe(0, None, true).unwrap();
+    server.publisher().publish(snapshot.clone()).unwrap();
+    assert_eq!(inspect_connection_file(&path).unwrap(), snapshot);
+    assert!(QueryServer::start(&path).is_err());
+    assert_eq!(code(raw(&path, b"{}\n")), ErrorCode::InvalidRequest);
+    assert_eq!(
+        code(raw(
+            &path,
+            b"{\"protocol_version\":1,\"token\":\"wrong\",\"operation\":\"inspect\"}\n"
+        )),
+        ErrorCode::Unauthorized
+    );
+    let (_, token) = address(&path);
+    let request =
+        format!("{{\"protocol_version\":99,\"token\":\"{token}\",\"operation\":\"inspect\"}}\n");
+    assert_eq!(
+        code(raw(&path, request.as_bytes())),
+        ErrorCode::UnsupportedProtocol
+    );
+    assert_eq!(
+        code(raw(&path, &vec![b'x'; 8193])),
+        ErrorCode::RequestTooLarge
+    );
+    drop(server);
+    assert!(!path.exists());
+}
+#[test]
+fn tcp_partial_frame_has_total_deadline_and_shutdown_discards_queue() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("connection.json");
+    let server = QueryServer::start(&path).unwrap();
+    let (address, _) = address(&path);
+    let mut stream = TcpStream::connect(&address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(4)))
+        .unwrap();
+    let started = Instant::now();
+    // 바이트가 계속 와도 frame 전체 기한은 갱신되지 않습니다.
+    for _ in 0..6 {
+        let _ = stream.write_all(b" ");
+        std::thread::sleep(Duration::from_millis(400));
+    }
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert_eq!(
+        code(serde_json::from_str(&response).unwrap()),
+        ErrorCode::ControlIo
+    );
+    assert!(started.elapsed() < Duration::from_secs(4));
+    let clients: Vec<_> = (0..12)
+        .map(|_| TcpStream::connect(&address).unwrap())
+        .collect();
+    std::thread::sleep(Duration::from_millis(50));
+    let started = Instant::now();
+    drop(server);
+    assert!(started.elapsed() < Duration::from_secs(1));
+    drop(clients);
+}
+#[test]
+fn tcp_modified_connection_file_is_preserved() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("connection.json");
+    let server = QueryServer::start(&path).unwrap();
+    std::fs::write(&path, "user replacement").unwrap();
+    drop(server);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "user replacement");
+}
+#[test]
+fn tcp_oversized_snapshot_returns_small_structured_error() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("connection.json");
+    let server = QueryServer::start(&path).unwrap();
+    let session = engine_document::EditorSession::create(
+        directory.path().join("project.json"),
+        "검증",
+        320,
+        180,
+    )
+    .unwrap();
+    let mut snapshot = SessionTracker::new()
+        .unwrap()
+        .observe(1, Some(&session), false)
+        .unwrap();
+    std::sync::Arc::make_mut(snapshot.project.as_mut().unwrap())
+        .document
+        .name = "x".repeat(engine_control::MAX_RESPONSE_BYTES);
+    server.publisher().publish(snapshot).unwrap();
+    assert_eq!(
+        inspect_connection_file(&path).unwrap_err().code,
+        ErrorCode::ResponseTooLarge
+    );
+}

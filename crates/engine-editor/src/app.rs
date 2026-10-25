@@ -13,6 +13,8 @@ use crate::{
 const ACCENT: Color32 = Color32::from_rgb(127, 188, 172);
 
 pub struct EditorApp {
+    pub(crate) live_control: Option<crate::agent_control::LiveControl>,
+    pub(crate) native_io_active: bool,
     pub(crate) workspace: ProjectWorkspace,
     pub(crate) editing: EditingState,
     pub(crate) pending_transition: Option<Transition>,
@@ -23,12 +25,14 @@ pub struct EditorApp {
     show_scene: bool,
     show_inspector: bool,
     show_resources: bool,
-    show_about: bool,
+    pub(crate) show_about: bool,
 }
 
 impl Default for EditorApp {
     fn default() -> Self {
         Self {
+            live_control: None,
+            native_io_active: false,
             workspace: ProjectWorkspace::default(),
             editing: EditingState::default(),
             pending_transition: None,
@@ -368,6 +372,7 @@ impl EditorApp {
 impl eframe::App for EditorApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_native_close(context);
+        self.publish_live(false);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -398,11 +403,14 @@ impl eframe::App for EditorApp {
             self.process_action(&context, action);
         }
         self.unsaved_dialog(&context);
+        // 네이티브 대화상자 중에도 worker가 확정 문서와 busy를 반환할 수 있다.
+        self.publish_live(false);
         self.workspace
             .dialogs(&context, self.pending_transition.is_none());
         if generation != self.workspace.generation {
             self.editing = EditingState::default();
         }
+        self.publish_live(false);
 
         egui::Window::new("Engine-1 정보")
             .open(&mut self.show_about)
