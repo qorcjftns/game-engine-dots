@@ -141,14 +141,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport", "build"],
+        choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport",
+                 "project", "scene", "build"],
     )
     parser.add_argument("arguments", nargs="*")
     arguments = parser.parse_args()
-    if arguments.command != "viewport" and arguments.arguments:
-        parser.error("추가 인자는 viewport에서만 사용합니다.")
+    if arguments.command not in ["viewport", "project", "scene"] and arguments.arguments:
+        parser.error("추가 인자는 viewport/project/scene에서만 사용합니다.")
     if arguments.command == "viewport" and len(arguments.arguments) != 2:
         parser.error("사용법: viewport WIDTH HEIGHT")
+    if arguments.command in ["project", "scene"] and (
+        len(arguments.arguments) != 2 or arguments.arguments[0] != "inspect"
+    ):
+        parser.error(f"사용법: {arguments.command} inspect FILE")
 
     if arguments.command == "setup":
         setup()
@@ -162,13 +167,14 @@ def main():
         cargo("test", "--locked", "--workspace")
         cargo("build", "--locked", "--workspace")
         smoke_cli()
+        run([sys.executable, str(ROOT / "scripts" / "smoke_readonly.py")])
     elif arguments.command == "test":
         cargo("test", "--locked", "--workspace")
     elif arguments.command == "editor":
         cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":
         cargo("run", "--locked", "-p", "engine-desktop")
-    elif arguments.command in ["info", "viewport"]:
+    elif arguments.command in ["info", "viewport", "project", "scene"]:
         cargo(
             "run", "--locked", "--quiet", "-p", "engine-cli", "--",
             arguments.command, *arguments.arguments,
