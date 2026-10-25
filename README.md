@@ -25,6 +25,15 @@ GUI에서 프로젝트를 생성·열고, PNG 스프라이트를 장면에 배�
 GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안의 콘텐츠에만
 320×180 같은 논리 해상도와 픽셀 확대 규칙을 적용합니다.
 
+## 다음 목표: GUI와 에이전트의 공동 편집
+
+다음 마일스톤 M2는 **실행 중인 GUI 한 개의 프로젝트를 CLI·MCP에서도 조회하고 편집하는 흐름**입니다.
+기존 스프라이트·속성·undo/redo·저장 기능을 재사용하고, 타일맵·애니메이션·플레이는 함께 넣지 않습니다.
+읽기 전용 CLI → GUI 세션 조회 → 같은 세션의 편집 → MCP 연결 순서로 진행합니다.
+아직 계획이며, [PR #6](https://github.com/qorcjftns/game-engine-dots/pull/6) →
+[PR #8](https://github.com/qorcjftns/game-engine-dots/pull/8)의 main 병합이 실제 구현의 선행 조건입니다.
+구체적인 작업 단위와 완료 기준은 [개발 순서](docs/roadmap.md)에 정리했습니다.
+
 ## 현재 구성과 예정 구성
 
 ```text
