@@ -1,0 +1,29 @@
+# Rust 빌드와 로컬 도구
+/target/
+/.tools/
+/artifacts/
+
+# 에이전트 작업 지침·로컬 설정 (하위 디렉터리 포함)
+AGENTS.md
+AGENTS.override.md
+.agents/
+.codex/
+/docs/agent-roles.md
+
+# 운영체제와 편집기 임시 파일
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+
+# 로컬 환경 변수와 비밀 값
+.env
+.env.*
+!.env.example
+
+# Cargo.lock은 의존성 재현을 위해 버전 관리에 포함한다.

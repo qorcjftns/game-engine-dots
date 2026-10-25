@@ -1,0 +1,9 @@
+[package]
+name = "engine-desktop"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine-core.workspace = true
+macroquad.workspace = true

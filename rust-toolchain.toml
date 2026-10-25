@@ -1,0 +1,5 @@
+[toolchain]
+# 공식 배포가 확인된 버전으로 고정한다. 로컬 설치/빌드 검증은 아직 필요하다.
+channel = "1.99.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
