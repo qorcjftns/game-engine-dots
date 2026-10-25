@@ -28,13 +28,14 @@ impl Default for NewProjectForm {
 
 impl NewProjectForm {
     pub fn show(&mut self, context: &egui::Context) -> Option<NewProjectRequest> {
-        let mut open = self.open;
+        if !self.open {
+            return None;
+        }
         let mut submitted = false;
-        egui::Window::new("새 프로젝트")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .show(context, |ui| {
+        let mut cancelled = false;
+        let response =
+            egui::Modal::new(egui::Id::unique("new_project_dialog")).show(context, |ui| {
+                ui.heading("새 프로젝트");
                 ui.label("프로젝트 이름");
                 ui.text_edit_singleline(&mut self.name);
                 ui.add_space(10.0);
@@ -60,8 +61,9 @@ impl NewProjectForm {
                         egui::Button::new("저장 위치 선택…"),
                     )
                     .clicked();
+                cancelled = ui.button("취소").clicked();
             });
-        self.open = open && !submitted;
+        self.open = !submitted && !cancelled && !response.should_close();
         submitted.then(|| NewProjectRequest {
             name: self.name.clone(),
             width: self.width,

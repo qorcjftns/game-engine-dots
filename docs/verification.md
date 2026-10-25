@@ -114,4 +114,31 @@ doctest1개, Clippy, 포맷, 전체 빌드와 CLI 계약5개입니다.
 래스터 검사는 알파 합성·음수 위치와 화면 밖 클리핑·프로젝트 해상도·물리 픽셀 배율을 확인합니다.
 
 이 검사는 네이티브 파일 선택 대화상자나 실제 GUI에서 저장·재열기한 결과를 대신하지 않습니다.
-프로젝트·PNG 흐름의 실제 UI 검토는 최종 선택·속성 편집 연결 후 별도로 수행합니다.
+프로젝트·PNG 흐름의 실제 UI 확인 결과는 아래와 같이 별도로 기록합니다.
+
+이후 실제 macOS/Retina 200%에서 native Save로 JSON 생성, native Open으로 PNG 가져오기,
+장면 배치, Cmd+S와 dirty 해제, 초기 상태에서 저장 JSON 재열기와 픽셀 복원까지 화면으로 확인했습니다.
+검토 폴더의 project.json은 schema_version 1, 320×180, 개체 1개(asset_id 1, 위치152,82)이며,
+assets/asset-1.png는 16×16, 96바이트로 원본 fixture와 바이트가 같습니다.
+저장된 프로젝트 이름은 기본값인 ‘새 프로젝트’여서 사용자 지정 한글 입력은 검증하지 않았습니다.
+Cmd+Q 뒤 초기 창은 도구의 자동 재실행 가능성이 있어 프로세스 종료 검증으로 단정하지 않습니다.
+PR6의 새 head `0ecb1bc`는 이전 `cdfbf2f`와 전체 tree가 같고,
+[일반 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40183279370)는 Mac·Windows 모두 통과했습니다.
+Windows 네이티브 실행과 DPI별 화면 검증은 아직 수행하지 않았습니다.
+
+## 최종 선택·속성·드래그·실행 취소 연결
+
+장면/캔버스 선택, 이름·정수 좌표 draft, 프레임 끝의 공통 명령 처리, 드래그 프리뷰와 종료 시 1회 커밋,
+undo/redo, 삭제와 저장/버리기/취소 전환을 연결했습니다.
+입력 중인 이름도 저장 전에 확정하고, 실패한 저장은 pending 전환과 작업을 보존합니다.
+
+macOS ARM64의 전체 offline check가 통과했습니다: 기존 코어 8개, 문서 14개, GUI 18개,
+doctest 1개와 CLI 계약 5개, rustfmt, Clippy 경고 없음과 workspace 빌드입니다.
+GUI 회귀는 실제 egui RawInput의 다중 이동/놓기와 undo 1회, 텍스트 입력 중의 단축키,
+취소한 미확정 draft 보존, 저장 실패, 정수 좌표 한계와 캐시 갱신을 검사합니다.
+
+중간 앱의 실제 QA에서는 일반 빨간 창 닫기는 dirty 문서를 보호했지만 Cmd+Q는 기본 winit Quit 경로로 우회했습니다.
+최종 코드는 Mac 기본 Quit 메뉴를 끄고 egui 기본 Quit 단축키도 비활성화한 뒤,
+Cmd+Q를 메뉴/창 닫기와 같은 미저장 전환 처리로 연결했습니다.
+이 수정의 실제 네이티브 Cmd+Q와 최종 편집 흐름은 별도 UI 검토 전에는 통과로 기록하지 않습니다.
+macOS Dock Quit·운영체제 강제 kill은 보호 범위 밖이며, Windows 네이티브/DPI 검증도 아직 미확인입니다.

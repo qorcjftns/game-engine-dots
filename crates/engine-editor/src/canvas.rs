@@ -1,9 +1,10 @@
 //! 문서 해상도에 먼저 합성한 게임 화면. 에디터 패널의 UI 배율과 분리한다.
 
 use eframe::egui::{
-    self, Color32, ColorImage, Pos2, Rect, Sense, TextureHandle, TextureOptions, Vec2,
+    self, Color32, ColorImage, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle,
+    TextureOptions, Vec2,
 };
-use engine_document::ProjectDocument;
+use engine_document::{EntityId, Position, ProjectDocument};
 
 use crate::{raster, resources::ProjectTextures};
 
@@ -14,15 +15,32 @@ pub struct ScenePreview {
     resource_generation: u64,
 }
 
+pub struct CanvasInteraction {
+    pub response: egui::Response,
+    pub viewport: Option<SceneViewport>,
+}
+
 impl ScenePreview {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
         document: &ProjectDocument,
         textures: &ProjectTextures,
-    ) {
-        self.prepare(ui.ctx(), document, textures);
-        let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::hover());
+        selected: Option<EntityId>,
+        preview: Option<(EntityId, Position)>,
+    ) -> CanvasInteraction {
+        let mut display_document = document.clone();
+        if let Some((id, position)) = preview
+            && let Some(entity) = display_document
+                .scene
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == id)
+        {
+            entity.position = position;
+        }
+        self.prepare(ui.ctx(), &display_document, textures);
+        let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
         painter.rect_filled(response.rect, 0.0, Color32::from_rgb(17, 20, 26));
 
         let Some(viewport) = SceneViewport::fit(
@@ -38,7 +56,10 @@ impl ScenePreview {
                 egui::FontId::proportional(13.0),
                 Color32::LIGHT_GRAY,
             );
-            return;
+            return CanvasInteraction {
+                response,
+                viewport: None,
+            };
         };
 
         if let Some(texture) = &self.texture {
@@ -48,6 +69,30 @@ impl ScenePreview {
                 Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                 Color32::WHITE,
             );
+        }
+        // 선택 테두리는 GUI 오버레이이며 논리 화면 텍스처에는 합성하지 않는다.
+        if let Some(id) = selected
+            && let Some(entity) = display_document
+                .scene
+                .entities
+                .iter()
+                .find(|entity| entity.id == id)
+            && let Some(asset) = display_document
+                .assets
+                .iter()
+                .find(|asset| asset.id == entity.asset_id)
+        {
+            let rect = viewport.entity_rect(entity.position, asset.width, asset.height);
+            painter.with_clip_rect(viewport.rect).rect_stroke(
+                rect,
+                0.0,
+                Stroke::new(1.5, Color32::from_rgb(127, 188, 172)),
+                StrokeKind::Inside,
+            );
+        }
+        CanvasInteraction {
+            response,
+            viewport: Some(viewport),
         }
     }
 
@@ -82,8 +127,9 @@ impl ScenePreview {
     }
 }
 
-struct SceneViewport {
-    rect: Rect,
+pub struct SceneViewport {
+    pub rect: Rect,
+    pub points_per_pixel: f32,
 }
 
 impl SceneViewport {
@@ -109,6 +155,29 @@ impl SceneViewport {
                 (origin / pixels_per_point).to_pos2(),
                 size / pixels_per_point,
             ),
+            points_per_pixel: scale / pixels_per_point,
+        })
+    }
+
+    fn entity_rect(&self, position: Position, width: u32, height: u32) -> Rect {
+        Rect::from_min_size(
+            self.rect.min + Vec2::new(position.x as f32, position.y as f32) * self.points_per_pixel,
+            Vec2::new(width as f32, height as f32) * self.points_per_pixel,
+        )
+    }
+
+    pub fn hit_test(&self, document: &ProjectDocument, pointer: Pos2) -> Option<EntityId> {
+        if !self.rect.contains(pointer) {
+            return None;
+        }
+        document.scene.entities.iter().rev().find_map(|entity| {
+            let asset = document
+                .assets
+                .iter()
+                .find(|asset| asset.id == entity.asset_id)?;
+            self.entity_rect(entity.position, asset.width, asset.height)
+                .contains(pointer)
+                .then_some(entity.id)
         })
     }
 }

@@ -4,26 +4,50 @@ use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Stroke, Strok
 use engine_core::{LOGICAL_HEIGHT, LOGICAL_WIDTH, viewport::Viewport};
 
 use crate::project_workflow::ProjectWorkspace;
+use crate::{
+    canvas::CanvasInteraction,
+    editing::EditingState,
+    editor_actions::{EditorAction, Transition},
+};
 
 const ACCENT: Color32 = Color32::from_rgb(127, 188, 172);
 
 pub struct EditorApp {
-    workspace: ProjectWorkspace,
+    pub(crate) workspace: ProjectWorkspace,
+    pub(crate) editing: EditingState,
+    pub(crate) pending_transition: Option<Transition>,
+    pub(crate) queued_action: Option<EditorAction>,
+    pub(crate) close_approved: bool,
+    pub(crate) commit_requested: bool,
+    pub(crate) canvas_interaction: Option<CanvasInteraction>,
     show_scene: bool,
     show_inspector: bool,
     show_resources: bool,
     show_about: bool,
 }
 
-impl EditorApp {
-    pub fn new(_creation: &eframe::CreationContext<'_>) -> Self {
+impl Default for EditorApp {
+    fn default() -> Self {
         Self {
             workspace: ProjectWorkspace::default(),
+            editing: EditingState::default(),
+            pending_transition: None,
+            queued_action: None,
+            close_approved: false,
+            commit_requested: false,
+            canvas_interaction: None,
             show_scene: true,
             show_inspector: true,
             show_resources: true,
             show_about: false,
         }
+    }
+}
+
+impl EditorApp {
+    pub fn new(creation: &eframe::CreationContext<'_>) -> Self {
+        configure_context(&creation.egui_ctx);
+        Self::default()
     }
 
     fn menu(&mut self, ui: &mut egui::Ui) {
@@ -35,11 +59,11 @@ impl EditorApp {
                     ui.separator();
                     ui.menu_button("파일", |ui| {
                         if ui.button("새 프로젝트…").clicked() {
-                            self.workspace.request_new_project();
+                            self.queued_action = Some(EditorAction::NewProject);
                             ui.close();
                         }
                         if ui.button("프로젝트 열기…").clicked() {
-                            self.workspace.open_project(ui.ctx());
+                            self.queued_action = Some(EditorAction::OpenProject);
                             ui.close();
                         }
                         if ui
@@ -49,14 +73,47 @@ impl EditorApp {
                             )
                             .clicked()
                         {
-                            self.workspace.save_project();
+                            self.queued_action = Some(EditorAction::Save);
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button("에디터 종료").clicked()
-                            && self.workspace.allow_close_or_replace()
+                        if ui.button("에디터 종료").clicked() {
+                            self.queued_action = Some(EditorAction::Quit);
+                        }
+                    });
+                    ui.menu_button("편집", |ui| {
+                        let can_undo = self.workspace.session.as_ref().is_some_and(|session| {
+                            session.can_undo()
+                                || self.editing.has_pending_changes(session.document())
+                        });
+                        let can_redo = self
+                            .workspace
+                            .session
+                            .as_ref()
+                            .is_some_and(|session| session.can_redo());
+                        if ui
+                            .add_enabled(can_undo, egui::Button::new("실행 취소"))
+                            .clicked()
                         {
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            self.queued_action = Some(EditorAction::Undo);
+                            ui.close();
+                        }
+                        if ui
+                            .add_enabled(can_redo, egui::Button::new("다시 실행"))
+                            .clicked()
+                        {
+                            self.queued_action = Some(EditorAction::Redo);
+                            ui.close();
+                        }
+                        if ui
+                            .add_enabled(
+                                self.editing.selected.is_some(),
+                                egui::Button::new("개체 삭제"),
+                            )
+                            .clicked()
+                        {
+                            self.queued_action = Some(EditorAction::Delete);
+                            ui.close();
                         }
                     });
                     ui.menu_button("보기", |ui| {
@@ -87,7 +144,7 @@ impl EditorApp {
                 ui.horizontal(|ui| {
                     if let Some(session) = &self.workspace.session {
                         ui.label(RichText::new(&session.document().name).strong());
-                        if session.is_dirty() {
+                        if self.has_unsaved_changes() {
                             ui.label(RichText::new("● 미저장 변경").color(ACCENT));
                         }
                         ui.separator();
@@ -125,7 +182,7 @@ impl EditorApp {
             });
     }
 
-    fn scene_panel(&self, ui: &mut egui::Ui) {
+    fn scene_panel(&mut self, ui: &mut egui::Ui) {
         if self.show_scene {
             egui::Panel::left("editor_scene")
                 .default_size(210.0)
@@ -140,7 +197,16 @@ impl EditorApp {
                         }
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for entity in &session.document().scene.entities {
-                                ui.label(&entity.name);
+                                if ui
+                                    .selectable_label(
+                                        self.editing.selected == Some(entity.id),
+                                        &entity.name,
+                                    )
+                                    .clicked()
+                                {
+                                    self.queued_action =
+                                        Some(EditorAction::Select(Some(entity.id)));
+                                }
                                 ui.small(format!(
                                     "위치 {}, {}",
                                     entity.position.x, entity.position.y
@@ -152,34 +218,6 @@ impl EditorApp {
                         ui.weak("열린 장면 없음");
                         ui.add_space(6.0);
                         ui.small("프로젝트를 열면 개체 목록이 표시됩니다.");
-                    }
-                });
-        }
-    }
-
-    fn inspector_panel(&self, ui: &mut egui::Ui) {
-        if self.show_inspector {
-            egui::Panel::right("editor_inspector")
-                .default_size(260.0)
-                .size_range(200.0..=400.0)
-                .show(ui, |ui| {
-                    panel_heading(ui, "속성", "INSPECTOR");
-                    ui.add_space(14.0);
-                    if let Some(session) = &self.workspace.session {
-                        let document = session.document();
-                        ui.strong("프로젝트");
-                        ui.label(&document.name);
-                        ui.label(format!(
-                            "논리 화면 {} × {}",
-                            document.logical_width, document.logical_height
-                        ));
-                        ui.label(format!("PNG 리소스 {}개", document.assets.len()));
-                        ui.add_space(10.0);
-                        ui.weak("개체 선택과 속성 편집은 다음 단계에서 연결합니다.");
-                    } else {
-                        ui.weak("선택한 개체 없음");
-                        ui.add_space(6.0);
-                        ui.small("프로젝트를 열면 문서 속성이 표시됩니다.");
                     }
                 });
         }
@@ -199,7 +237,7 @@ impl EditorApp {
                         )
                         .clicked()
                     {
-                        self.workspace.import_png(ui.ctx());
+                        self.queued_action = Some(EditorAction::ImportPng);
                     }
                     let assets = self
                         .workspace
@@ -242,7 +280,7 @@ impl EditorApp {
                         });
                     });
                     if let Some(asset_id) = add_asset {
-                        self.workspace.add_sprite(asset_id);
+                        self.queued_action = Some(EditorAction::AddSprite(asset_id));
                     }
                     for issue in &self.workspace.textures.issues {
                         ui.colored_label(Color32::from_rgb(220, 110, 130), issue);
@@ -268,9 +306,13 @@ impl EditorApp {
             ui.separator();
 
             if let Some(session) = &self.workspace.session {
-                self.workspace
-                    .preview
-                    .show(ui, session.document(), &self.workspace.textures);
+                self.canvas_interaction = Some(self.workspace.preview.show(
+                    ui,
+                    session.document(),
+                    &self.workspace.textures,
+                    self.editing.selected,
+                    self.editing.preview_position(session.document()),
+                ));
                 return;
             }
 
@@ -324,27 +366,43 @@ impl EditorApp {
 }
 
 impl eframe::App for EditorApp {
+    fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+        self.handle_native_close(context);
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if ui.ctx().input(|input| input.viewport().close_requested())
-            && !self.workspace.allow_close_or_replace()
-        {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
-        }
-        if ui
-            .ctx()
-            .input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::S))
-        {
-            self.workspace.save_project();
-        }
+        let context = ui.ctx().clone();
+        let generation = self.workspace.generation;
+        self.handle_native_close(&context);
         self.menu(ui);
         self.toolbar(ui);
         self.status_bar(ui);
         self.scene_panel(ui);
-        self.inspector_panel(ui);
+        if self.show_inspector {
+            self.inspector_panel(ui);
+        }
         self.resource_panel(ui);
         self.viewport(ui);
-        self.workspace.dialogs(ui.ctx());
+        if !self.workspace.form_is_open() && self.pending_transition.is_none() && !self.show_about {
+            if self.commit_requested {
+                self.commit_edits();
+                self.commit_requested = false;
+            }
+            self.handle_canvas(&context);
+            self.keyboard_shortcuts(&context);
+        } else {
+            self.canvas_interaction = None;
+        }
+        self.quit_shortcut(&context);
+        if let Some(action) = self.queued_action.take() {
+            self.process_action(&context, action);
+        }
+        self.unsaved_dialog(&context);
+        self.workspace
+            .dialogs(&context, self.pending_transition.is_none());
+        if generation != self.workspace.generation {
+            self.editing = EditingState::default();
+        }
 
         egui::Window::new("Engine-1 정보")
             .open(&mut self.show_about)
@@ -354,8 +412,9 @@ impl eframe::App for EditorApp {
                 ui.label("GUI 게임 에디터와 자체 2D 도트 엔진");
                 ui.separator();
                 ui.label("프로젝트 생성·열기, PNG 가져오기·배치와 저장을 지원합니다.");
-                ui.label("미저장 변경이 있으면 프로젝트 전환과 종료를 차단합니다.");
-                ui.label("개체 속성 편집·실행 취소·플레이는 아직 연결되지 않았습니다.");
+                ui.label("장면에서 개체를 선택하고 이름과 픽셀 위치를 편집할 수 있습니다.");
+                ui.label("드래그·실행 취소·다시 실행과 미저장 변경 보호를 지원합니다.");
+                ui.label("플레이 미리보기는 아직 연결되지 않았습니다.");
             });
     }
 }
@@ -366,4 +425,9 @@ fn panel_heading(ui: &mut egui::Ui, title: &str, subtitle: &str) {
         ui.weak(subtitle);
     });
     ui.separator();
+}
+
+pub(crate) fn configure_context(context: &egui::Context) {
+    // egui 기본 Command+Q도 프레임 끝에 Close를 직접 보낸다. 공통 저장 확인 경로만 사용한다.
+    context.options_mut(|options| options.quit_shortcuts.clear());
 }

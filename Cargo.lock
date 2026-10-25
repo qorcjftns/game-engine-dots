@@ -926,6 +926,8 @@ dependencies = [
  "engine-core",
  "engine-document",
  "rfd",
+ "tempfile",
+ "winit",
 ]
 
 [[package]]
