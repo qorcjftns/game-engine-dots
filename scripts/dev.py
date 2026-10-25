@@ -135,6 +135,9 @@ def smoke_cli():
 
 
 def main():
+    # Windows의 비 UTF-8 콘솔·리다이렉션에서도 한국어 진단을 출력한다.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",

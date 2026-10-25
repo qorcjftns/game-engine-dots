@@ -60,6 +60,11 @@ runner 라벨은 [GitHub 공식 지원 목록](https://docs.github.com/en/action
 checkout v7.0.1과 setup-python v7.1.0은 공식 태그의 commit SHA로 고정했습니다.
 로컬에서 CI 설정을 작성한 것과 원격 CI가 실제 통과한 것은 별도로 기록합니다.
 
+최초 원격 CI에서 macOS 검사는 통과했고, Windows는 Python의 cp1252 출력 인코딩으로
+한국어 설치 안내를 출력하다 실패했습니다. 개발 스크립트의 stdout·stderr를 UTF-8로 고정해
+수정하고, 로컬에서 `PYTHONIOENCODING=cp1252` 상태의 doctor·도움말 출력을 확인합니다.
+수정 후 Windows CI 결과는 별도로 확인합니다.
+
 ## 다음 단계의 확인 항목
 
 실제 GUI가 추가되면 운영체제·화면 크기·DPI·입력·저장/재열기 결과와 캡처를 기록합니다.
