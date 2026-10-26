@@ -2,6 +2,7 @@
 members = [
     "crates/engine-runtime",
     "crates/engine-host",
+    "crates/engine-player",
     "crates/engine-core",
     "crates/engine-desktop",
     "crates/engine-cli",

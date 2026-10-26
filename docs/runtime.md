@@ -19,9 +19,19 @@ Pause 뒤 1 tick 또는 도구의 N tick은 1~100000 범위에서 정확히 실�
 실행 snapshot PNG 합산 RGBA 예산은 256 MiB이다. 최대 논리 프레임 4096²은 64 MiB이며 GPU/GUI 캐시는 별도이다.
 정적 장면은 시작할 때 렌더하고 호스트가 텍스처를 보관한다. `frame`은 호스트 표시 요청 횟수이며 GPU 완료 fence가 아니다.
 
+## 독립 player
+
+`cargo run -p engine-player -- PROJECT.json`은 editor/CLI/MCP 없이 같은 runtime과 입력·camera 호스트로 실행한다.
+프로젝트와 상대 PNG를 읽으며 저장하지 않는다. `--headless-ticks N`은 같은 snapshot의 정확 tick/hash smoke이다.
+headless 결과는 네이티브 창의 실제 출력 검증을 대신하지 않는다. M10 export 패키징·서명·공증은 별도 단계이다.
+
 ## 실제 화면
 
 macOS ARM64/Retina 실제 eframe 창에서 dirty 문서 Play→Pause→73 tick→Stop→undo→재시작을 확인했다.
 아래는 pause 후 tick 88/frame 39 상태이다. PNG·JSON hash는 흐름 전후 같았다.
 
 ![M3 editor Play](images/m3-editor-play-macos.png)
+
+macOS 실제 독립 player의 같은 fixture 출력:
+
+![M3 player](images/m3-player-macos.png)

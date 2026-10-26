@@ -1032,6 +1032,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "engine-player"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "engine-document",
+ "engine-host",
+ "engine-runtime",
+ "serde_json",
+]
+
+[[package]]
 name = "engine-protocol"
 version = "0.1.0"
 dependencies = [
