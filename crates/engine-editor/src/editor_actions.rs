@@ -56,12 +56,17 @@ impl EditorApp {
 
     pub(crate) fn has_unsaved_changes(&self) -> bool {
         self.workspace.session.as_ref().is_some_and(|session| {
-            session.is_dirty() || self.editing.has_pending_changes(session.document())
+            session.is_dirty()
+                || self.editing.has_pending_changes(session.document())
+                || self.behavior_pending()
         })
     }
 
     /// 입력 중인 이름과 좌표를 확정한다. 검증 실패 시 파일 저장도 진행하지 않는다.
     pub(crate) fn commit_edits(&mut self) -> bool {
+        if !self.commit_behavior() {
+            return false;
+        }
         if let Some(drag) = self.editing.drag.take() {
             if !self.execute(EditCommand::MoveEntity {
                 id: drag.id,
@@ -134,6 +139,7 @@ impl EditorApp {
     }
 
     pub(crate) fn synchronize_selection(&mut self) {
+        self.load_behavior(self.behavior_draft.as_ref().map(|d| d.id));
         if let Some(session) = &self.workspace.session {
             self.editing.synchronize(session.document());
         } else {

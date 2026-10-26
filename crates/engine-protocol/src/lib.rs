@@ -196,6 +196,23 @@ mod tests {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MutationCommand {
+    AddBehavior {
+        file: String,
+        source: String,
+    },
+    UpdateBehavior {
+        id: engine_document::BehaviorId,
+        file: String,
+        source: String,
+    },
+    RemoveBehavior {
+        id: engine_document::BehaviorId,
+    },
+    BindBehavior {
+        id: engine_document::EntityId,
+        behavior_id: Option<engine_document::BehaviorId>,
+    },
+    ValidateBehaviors,
     AddSprite {
         asset_id: engine_document::AssetId,
         name: String,
@@ -243,6 +260,8 @@ pub struct MutationRequest {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationEffect {
+    pub behavior_id: Option<engine_document::BehaviorId>,
+    pub diagnostics: Vec<engine_runtime::BehaviorDiagnostic>,
     pub entity_id: Option<engine_document::EntityId>,
 }
 
@@ -275,6 +294,23 @@ pub enum MutationState {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 enum StrictMutationCommand {
+    AddBehavior {
+        file: String,
+        source: String,
+    },
+    UpdateBehavior {
+        id: engine_document::BehaviorId,
+        file: String,
+        source: String,
+    },
+    RemoveBehavior {
+        id: engine_document::BehaviorId,
+    },
+    BindBehavior {
+        id: engine_document::EntityId,
+        behavior_id: Option<engine_document::BehaviorId>,
+    },
+    ValidateBehaviors {},
     AddSprite {
         asset_id: engine_document::AssetId,
         name: String,
@@ -311,6 +347,17 @@ enum StrictMutationCommand {
 impl From<StrictMutationCommand> for MutationCommand {
     fn from(value: StrictMutationCommand) -> Self {
         match value {
+            StrictMutationCommand::AddBehavior { file, source } => {
+                Self::AddBehavior { file, source }
+            }
+            StrictMutationCommand::UpdateBehavior { id, file, source } => {
+                Self::UpdateBehavior { id, file, source }
+            }
+            StrictMutationCommand::RemoveBehavior { id } => Self::RemoveBehavior { id },
+            StrictMutationCommand::BindBehavior { id, behavior_id } => {
+                Self::BindBehavior { id, behavior_id }
+            }
+            StrictMutationCommand::ValidateBehaviors {} => Self::ValidateBehaviors,
             StrictMutationCommand::AddSprite {
                 asset_id,
                 name,
@@ -368,6 +415,27 @@ mod strict_mutation_tests {
                 )
                 .is_err()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod behavior_contract_tests {
+    use super::*;
+    #[test]
+    fn behavior_commands_roundtrip_and_reject_unexpected_fields() {
+        for value in [
+            serde_json::json!({"type":"add_behavior","file":"이동.rhai","source":"move(2,0);"}),
+            serde_json::json!({"type":"update_behavior","id":u64::MAX,"file":"이동.rhai","source":"move(2,0);"}),
+            serde_json::json!({"type":"remove_behavior","id":1}),
+            serde_json::json!({"type":"bind_behavior","id":1,"behavior_id":null}),
+            serde_json::json!({"type":"validate_behaviors"}),
+        ] {
+            let parsed: MutationCommand = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+            let mut extra = value;
+            extra["shell"] = serde_json::json!("no");
+            assert!(serde_json::from_value::<MutationCommand>(extra).is_err());
         }
     }
 }

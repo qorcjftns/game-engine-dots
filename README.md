@@ -171,3 +171,18 @@ cargo run --locked -p engine-player -- path/to/project.json --headless-ticks 73
 
 CLI `session inspect`와 MCP `session_inspect`의 `runtime`에서 run ID·tick·frame·입력·화면 hash를 조회합니다.
 실행 제어도 기존 `session mutate`/`session_mutate`와 request ID 결과 원장을 사용합니다. [요청 예시](docs/agent-interface.md#m3-실행-조회와-제어).
+
+## M4 행동 작성
+
+프로젝트와 PNG 개체를 만든 뒤 toolbar의 **행동 코드… → 새 행동**을 누릅니다.
+내장 multiline 입력창에서 Rhai 소스를 편집하고 **문법 검증 → 적용 → 선택 개체에 연결**을 누릅니다.
+소스 창을 닫고 **Play** 후 게임 화면을 클릭하면 기본 예제는 WASD/방향키로 이동합니다.
+Stop 뒤 속도를 바꾸고 다시 실행하세요. **저장**은 미확정 행동 입력도 먼저 적용하며 소스·연결을 함께 저장합니다.
+입력 되돌리기는 미확정 source만 취소하고, 일반 undo/redo는 적용한 행동과 연결을 되돌립니다.
+외부 도구 변경은 소스 draft 중 거부합니다. 프로젝트 전환·종료는 기존 미저장 확인을 공유합니다.
+
+소스는 프로젝트 JSON v2에 논리 파일 이름과 함께 포함하므로 같은 프로젝트를 독립 player에서 열면 같은 행동을 실행합니다.
+`x/y/state`는 해당 tick 시작값인 읽기 상수이고 `move(dx,dy)`, `set_position(x,y)`, `set_state(n)`, `log(string)`을 사용합니다.
+허용된 정수 언어 기능과 제한만 지원하며 일반 Rhai 표준 라이브러리는 없습니다.
+오류가 나면 editor/player는 file/line/entity와 원인을 표시하고 실행을 멈춥니다. Stop 후 소스를 수정하면 됩니다.
+[실행 예제·예산·오류 정책](docs/runtime.md#m4-행동-실행-기반), [CLI/MCP 요청](docs/agent-interface.md#m4-행동-작성검증)을 참고하세요.

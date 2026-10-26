@@ -37,7 +37,14 @@ impl EditorApp {
             ));
         }
         match command {
-            C::RunPause { paused, .. } => run.pause(*paused),
+            C::RunPause { paused, .. } => {
+                if !paused && run.status().error.is_some() {
+                    return Err(invalid(
+                        "행동 오류가 있습니다. Stop 후 다시 Play하세요.".into(),
+                    ));
+                }
+                run.pause(*paused)
+            }
             C::RunStep { ticks, input, .. } => {
                 if !run.status().paused || !(1..=100000).contains(ticks) {
                     return Err(invalid("Pause 상태에서 1~100000 tick을 지정하세요.".into()));
@@ -103,17 +110,23 @@ impl EditorApp {
         ui.horizontal(|ui| {
             if let Some(run) = &mut self.play {
                 if ui
-                    .button(if run.status().paused {
-                        "▶ Resume"
-                    } else {
-                        "Ⅱ Pause"
-                    })
+                    .add_enabled(
+                        run.status().error.is_none(),
+                        egui::Button::new(if run.status().paused {
+                            "▶ Resume"
+                        } else {
+                            "Ⅱ Pause"
+                        }),
+                    )
                     .clicked()
                 {
                     run.pause(!run.status().paused);
                 }
                 if ui
-                    .add_enabled(run.status().paused, egui::Button::new("1 tick"))
+                    .add_enabled(
+                        run.status().paused && run.status().error.is_none(),
+                        egui::Button::new("1 tick"),
+                    )
                     .clicked()
                 {
                     let _ = run.step(1);
@@ -145,6 +158,34 @@ impl EditorApp {
                 start = true;
             }
         });
+        if let Some(run) = &self.play {
+            if let Some(error) = &run.status().error {
+                ui.colored_label(
+                    egui::Color32::LIGHT_RED,
+                    format!(
+                        "{}:{}:{} · 개체 {:?} · tick {}: {}",
+                        error.file,
+                        error.line,
+                        error.column,
+                        error.entity_id.map(|id| id.0),
+                        error.tick,
+                        error.message
+                    ),
+                );
+            }
+            egui::CollapsingHeader::new("실행 로그").show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(90.0)
+                    .show(ui, |ui| {
+                        for log in run.status().logs.iter().rev() {
+                            ui.small(format!(
+                                "{}:{} · 개체 {} · tick {}: {}",
+                                log.file, log.line, log.entity_id.0, log.tick, log.message
+                            ));
+                        }
+                    });
+            });
+        }
         if start && let Err(error) = self.start_play(ui.ctx()) {
             self.workspace.status = error;
         }

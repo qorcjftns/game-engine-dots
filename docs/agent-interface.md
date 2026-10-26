@@ -218,3 +218,26 @@ export된 일반 게임이 편집 서버·대화/이미지 provider·그 키를 
 Step은 Pause에서 1~100000 tick을 정확히 처리합니다. 명시적 input은 마지막 완료 tick을 기준으로 비교하므로 중간 GUI frame의 포커스 처리와 무관합니다.
 같은 request ID를 재전송하면 기존 결과만 반환하며 tick이 중복 진행되지 않습니다. 오래된 run ID는 `run_mismatch`로 거부합니다.
 실행 중 문서 변경은 `editor_busy`로 거부하지만 실행 조회와 제어는 가능합니다. Stop 후 기존 문서 편집을 다시 사용할 수 있습니다.
+
+## M4 행동 작성·검증
+
+프로젝트 조회의 `document.behaviors`는 `{id, file, source}`, 개체의 `behavior_id`는 행동 ID 또는 null입니다.
+다음 명령을 기존 `session mutate`/MCP `session_mutate`에 넣습니다. 별도 shell이나 파일 쓰기 도구는 없습니다.
+
+```json
+{"type":"add_behavior","file":"move.rhai","source":"if right { move(2,0); }\nif left { move(-2,0); }"}
+{"type":"update_behavior","id":1,"file":"move.rhai","source":"move(1,0);"}
+{"type":"bind_behavior","id":73,"behavior_id":1}
+{"type":"bind_behavior","id":73,"behavior_id":null}
+{"type":"remove_behavior","id":1}
+{"type":"validate_behaviors"}
+```
+
+추가 결과 `effect.behavior_id`를 읽어 연결합니다. `id`는 실제 조회/추가 결과의 ID를 사용하세요.
+검증 명령은 실행하지 않고 `effect.diagnostics`에 file/line/column/message를 반환합니다. 성공은 빈 목록이며 문서 revision을 바꾸지 않습니다.
+검증 오류가 있어도 명령 처리 자체는 applied이고 진단 목록을 확인해야 합니다. 문법 오류 소스는 작업 중 상태로 저장할 수 있습니다.
+runtime 오류/이름·타입/예산 오류는 Play에서 확인합니다. `runtime.error`는 오류 위치·개체·실패 tick,
+`runtime.logs`는 최근64개 로그, `runtime.entities`는 연결 개체의 실행 위치와 state입니다. 원문서는 별도로 유지됩니다.
+행동 실행 step은 최대120 tick입니다. 오류 tick은 전체 취소, 이전 완료 tick은 보존하며 요청은 rejected와 runtime.error를 남깁니다.
+같은 요청 ID 재조회/재전송은 이미 완료한 tick을 반복하지 않습니다. 오류 후 Resume/step은 거부하고 Stop 후 다시 시작해야 합니다.
+행동 편집도 기존 revision/busy/deadline/dedup 규칙을 사용하며 사람의 소스 draft를 덮어쓰지 않습니다.
