@@ -62,7 +62,7 @@ impl NativeSmoke {
         let snapshot = self.editor.publish_live(false).expect("live snapshot");
         let minimized = ctx.input(|input| input.viewport().minimized);
         let value = serde_json::json!({"id": id, "frames": self.frames,
-                                      "minimized": minimized, "runtime": self.editor.play.as_ref().map(|r|r.status()), "snapshot": snapshot});
+                                      "minimized": minimized, "runtime": self.editor.play.as_ref().map(|r|r.status()), "runtime_viewport": self.editor.game_view.viewport_pixels(), "snapshot": snapshot});
         fs::write(
             self.directory.join("host-observation.json"),
             serde_json::to_vec(&value).unwrap(),

@@ -87,6 +87,16 @@ impl PlaySession {
         self.pressed = ActionInput::default();
         self.released = ActionInput::default();
     }
+    /// 명시적 step은 마지막 완료 tick 입력을 기준으로 하여 GUI frame 수와 무관하다.
+    pub fn step_with_input(&mut self, count: u32, input: ActionInput) -> Result<(), &'static str> {
+        if !self.status.paused || !(1..=100_000).contains(&count) {
+            return Err("Pause 상태에서 1~100000 tick을 지정하세요.");
+        }
+        self.pending = input;
+        self.pressed = edges(input, self.status.input);
+        self.released = edges(self.status.input, input);
+        self.step(count)
+    }
     pub fn step(&mut self, count: u32) -> Result<(), &'static str> {
         if !self.status.paused {
             return Err("step에는 pause가 필요합니다.");
@@ -170,6 +180,35 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+    #[test]
+    fn pause_discards_pending_taps_and_explicit_steps_ignore_host_frames() {
+        let dir = tempfile::tempdir().unwrap();
+        let s =
+            engine_document::EditorSession::create(dir.path().join("p.json"), "p", 2, 2).unwrap();
+        let mut a = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
+        let input = ActionInput {
+            left: true,
+            ..Default::default()
+        };
+        a.set_input(input);
+        a.pause(true);
+        a.step(1).unwrap();
+        assert!(!a.status().pressed.left);
+        assert!(!a.status().input.left);
+        let mut b = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
+        b.pause(true);
+        b.step(1).unwrap();
+        a.step_with_input(1, input).unwrap();
+        b.step_with_input(1, input).unwrap();
+        a.clear_input();
+        a.step_with_input(1, input).unwrap();
+        b.step_with_input(1, input).unwrap();
+        assert_eq!(a.status(), b.status());
+    }
+}
 #[cfg(test)]
 mod pause_regression {
     use super::*;

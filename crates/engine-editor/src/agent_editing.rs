@@ -47,6 +47,15 @@ impl EditorApp {
         context: &egui::Context,
         command: &MutationCommand,
     ) -> Result<MutationEffect, ApiError> {
+        if matches!(
+            command,
+            MutationCommand::RunStart
+                | MutationCommand::RunPause { .. }
+                | MutationCommand::RunStep { .. }
+                | MutationCommand::RunStop { .. }
+        ) {
+            return self.apply_runtime_command(context, command);
+        }
         if self.play.is_some() || self.editor_busy(context) {
             return Err(ApiError::new(
                 ErrorCode::EditorBusy,

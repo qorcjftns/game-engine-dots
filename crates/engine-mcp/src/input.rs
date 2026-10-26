@@ -52,6 +52,41 @@ pub enum CommandInput {
     Undo {},
     Redo {},
     Save {},
+    RunStart {},
+    RunPause {
+        run_id: u64,
+        paused: bool,
+    },
+    RunStep {
+        run_id: u64,
+        ticks: u32,
+        input: ActionInput,
+    },
+    RunStop {
+        run_id: u64,
+    },
+}
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ActionInput {
+    pub left: bool,
+    pub right: bool,
+    pub up: bool,
+    pub down: bool,
+    pub primary: bool,
+    pub pointer: Option<[i32; 2]>,
+}
+impl From<ActionInput> for engine_runtime::ActionInput {
+    fn from(v: ActionInput) -> Self {
+        Self {
+            left: v.left,
+            right: v.right,
+            up: v.up,
+            down: v.down,
+            primary: v.primary,
+            pointer: v.pointer,
+        }
+    }
 }
 impl From<PositionInput> for Position {
     fn from(value: PositionInput) -> Self {
@@ -85,6 +120,20 @@ impl From<MutationInput> for MutationRequest {
             CommandInput::Undo {} => MutationCommand::Undo,
             CommandInput::Redo {} => MutationCommand::Redo,
             CommandInput::Save {} => MutationCommand::Save,
+            CommandInput::RunStart {} => MutationCommand::RunStart,
+            CommandInput::RunPause { run_id, paused } => {
+                MutationCommand::RunPause { run_id, paused }
+            }
+            CommandInput::RunStep {
+                run_id,
+                ticks,
+                input,
+            } => MutationCommand::RunStep {
+                run_id,
+                ticks,
+                input: input.into(),
+            },
+            CommandInput::RunStop { run_id } => MutationCommand::RunStop { run_id },
         };
         Self {
             expected_session_id: value.expected_session_id,
@@ -118,6 +167,10 @@ mod tests {
             json!({"type":"undo"}),
             json!({"type":"redo"}),
             json!({"type":"save"}),
+            json!({"type":"run_start"}),
+            json!({"type":"run_pause","run_id":7,"paused":true}),
+            json!({"type":"run_stop","run_id":7}),
+            json!({"type":"run_step","run_id":7,"ticks":73,"input":{"left":true,"right":false,"up":false,"down":false,"primary":false,"pointer":null}}),
         ] {
             let value = json!({
                 "expected_session_id": "session",

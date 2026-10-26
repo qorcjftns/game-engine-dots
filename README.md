@@ -25,8 +25,10 @@ AI 후보는 비교·수동 보정·승인 후 새 버전으로 적용하며, pr
 전체 단계, 지원 범위와 최종 인수 조건은 [개발계획](docs/roadmap.md)을 기준으로 합니다.
 
 현재 M1은 프로젝트 생성·PNG 배치·선택·이름/위치·드래그·undo/redo·저장·재열기까지 연결했습니다.
-현재 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 구현과 통합 검증을 진행합니다.
-새 runtime·행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전이며, 전체 계획에서 순서와 완료 기준을 정합니다.
+M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 코드와 통합 검증을 마쳤습니다. 이 M3 stack은 M2 최종 코드를 기반으로 합니다.
+M3는 실행 snapshot·공통 renderer/camera·Play/Pause/step/Stop·action 입력·독립 player·CLI/MCP 실행 제어를 구현했습니다.
+실행 중 문서 편집은 거부하고 Stop 뒤 원래 dirty·이력으로 편집을 재개합니다. [runtime 사용법과 경계](docs/runtime.md)를 참고하세요.
+행동 코드·도트/대화형 에셋 제작·export는 이후 단계입니다. M3 PR의 선행 병합과 OS별 검증 상태는 [검증 기록](docs/verification.md)과 구분합니다.
 검증용 게임/장면은 엔진의 기능을 확인하기 위한 fixture입니다.
 
 GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안의 콘텐츠에만
@@ -43,6 +45,9 @@ crates/engine-protocol/ 현재: disk/live 조회·편집 요청·receipt·오류
 crates/engine-control/  현재: live snapshot·로컬 TCP·변경 큐·원장·공통 client
 crates/engine-cli/      현재: 설정·표시 영역·disk/live 조회·live 편집/결과 확인
 crates/engine-mcp/      현재: 공식 rmcp 기반 stdio 도구 3개
+crates/engine-runtime/  현재: 실행 snapshot·고정 tick·action·논리 RGBA
+crates/engine-host/     현재: editor/player 공통 표시·입력 포커스
+crates/engine-player/   현재: 편집 UI 없는 프로젝트 실행 호스트
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```
@@ -153,3 +158,16 @@ M2의 소스 구현·실제 TCP·native GUI·MCP 교차 검증 상태는 검증 
 **저장 후 계속 / 변경 버리기 / 취소**를 선택하도록 연결했습니다.
 macOS Dock 메뉴의 Quit와 운영체제 강제 종료는 이 보호 경로의 지원 범위가 아닙니다.
 기존 파일을 덮어써서 새 프로젝트를 만들지는 않습니다.
+
+## M3 실행
+
+GUI에서 프로젝트를 연 뒤 **Play → Pause → 1 tick → Stop**을 사용할 수 있습니다.
+게임 화면을 클릭하면 WASD/방향키·Space/왼쪽 마우스의 action 상태를 관찰합니다. M3에는 사용자 행동 코드가 없어 스프라이트는 입력으로 이동하지 않습니다.
+
+```sh
+cargo run --locked -p engine-player -- path/to/project.json
+cargo run --locked -p engine-player -- path/to/project.json --headless-ticks 73
+```
+
+CLI `session inspect`와 MCP `session_inspect`의 `runtime`에서 run ID·tick·frame·입력·화면 hash를 조회합니다.
+실행 제어도 기존 `session mutate`/`session_mutate`와 request ID 결과 원장을 사용합니다. [요청 예시](docs/agent-interface.md#m3-실행-조회와-제어).

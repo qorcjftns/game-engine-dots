@@ -1023,6 +1023,7 @@ dependencies = [
  "engine-control",
  "engine-document",
  "engine-protocol",
+ "engine-runtime",
  "rmcp",
  "schemars",
  "serde",
@@ -1039,6 +1040,7 @@ dependencies = [
  "engine-document",
  "engine-host",
  "engine-runtime",
+ "image 0.25.10",
  "serde_json",
 ]
 
@@ -1047,6 +1049,7 @@ name = "engine-protocol"
 version = "0.1.0"
 dependencies = [
  "engine-document",
+ "engine-runtime",
  "serde",
  "serde_json",
 ]

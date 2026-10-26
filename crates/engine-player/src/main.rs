@@ -1,10 +1,10 @@
 //! 편집 UI와 제어 서버 없이 프로젝트를 실행하는 최소 호스트.
 use eframe::egui;
 use engine_runtime::{PlaySession, RuntimeWorld};
-struct Player {
-    run: PlaySession,
-    view: engine_host::GameView,
-    time: std::time::Instant,
+pub(crate) struct Player {
+    pub(crate) run: PlaySession,
+    pub(crate) view: engine_host::GameView,
+    pub(crate) time: std::time::Instant,
 }
 impl eframe::App for Player {
     fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {

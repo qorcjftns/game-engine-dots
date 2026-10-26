@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 engine-document.workspace = true
+engine-runtime.workspace = true
 serde = { version = "1", features = ["derive", "rc"] }
 
 [dev-dependencies]

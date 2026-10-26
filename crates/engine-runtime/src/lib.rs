@@ -144,3 +144,28 @@ mod asset_tests {
         assert_eq!(std::fs::read(path).unwrap(), saved);
     }
 }
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    #[test]
+    fn oversized_asset_budget_is_rejected_before_reading_missing_pngs() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("p.json");
+        let assets = (1..=5)
+            .map(|id| {
+                format!(r#"{{"id":{id},"path":"assets/{id}.png","width":4096,"height":4096}}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let data = format!(
+            r#"{{"schema_version":1,"name":"budget","logical_width":320,"logical_height":180,"assets":[{assets}],"scene":{{"entities":[]}}}}"#
+        );
+        std::fs::write(&path, &data).unwrap();
+        let session = EditorSession::open(&path).unwrap();
+        let error = RuntimeWorld::snapshot(&session).err().unwrap();
+        assert!(error.to_string().contains("256 MiB"));
+        assert!(!session.is_dirty());
+        assert_eq!(std::fs::read_to_string(path).unwrap(), data);
+    }
+}

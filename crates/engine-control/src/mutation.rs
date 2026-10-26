@@ -280,6 +280,15 @@ pub fn apply_command(
     session: &mut EditorSession,
 ) -> Result<MutationEffect> {
     let edit = match command {
+        MutationCommand::RunStart
+        | MutationCommand::RunPause { .. }
+        | MutationCommand::RunStep { .. }
+        | MutationCommand::RunStop { .. } => {
+            return Err(failure(
+                ErrorCode::InvalidRunState,
+                "실행 명령은 GUI 실행 호스트가 처리합니다.",
+            ));
+        }
         MutationCommand::AddSprite {
             asset_id,
             name,

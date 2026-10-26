@@ -21,7 +21,8 @@ Rust, [egui](https://github.com/emilk/egui)/[eframe](https://docs.rs/eframe/late
 | `engine-mcp` | 공식 rmcp stdio 도구 3개에서 control client 직접 호출 |
 | `engine-desktop` | Macroquad 출력 검증 데모 |
 
-새 runtime·행동 코드·도트/대화형 에셋 제작·player·export는 아직 구현 전입니다.
+M3에서 `engine-runtime`이 문서·PNG 사본/입력/tick/논리 출력을, `engine-host`가 공통 egui 입력·표시를,
+`engine-player`가 편집 UI 없는 창 수명을 담당합니다. 행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전입니다.
 기존 데모 실행을 프로젝트를 읽는 독립 player의 완성 근거로 사용하지 않습니다.
 새 크레이트와 라이브러리는 실제 경계·실험 결과가 정해질 때 추가합니다.
 

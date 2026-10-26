@@ -37,6 +37,7 @@ fn tcp_cli_reads_published_state_instead_of_disk_and_reports_closed_server() {
         session_id: "process-contract-session".into(),
         revision: 23,
         busy: true,
+        runtime: None,
         is_dirty: true,
         can_undo: true,
         can_redo: false,
