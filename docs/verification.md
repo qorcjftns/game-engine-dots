@@ -324,3 +324,36 @@ PNG 리소스와 실제 magenta 픽셀, 한글 표시와 잘림 없음을 확인
 M2는 구현 브랜치에서 검증된 상태이며 main에 병합된 것으로 기록하지 않습니다.
 PR #11은 main 대상 ready, #12→#13→#14는 선행 브랜치를 base로 한 Draft이며 병합/자동 병합을 수행하지 않았습니다.
 최종 README·설계·이 기록 정리는 문서만 변경하며 실행 코드·manifest·lock·CI는 검증한 `015fa3b`와 같습니다.
+
+## M3 구현과 검증 (2026-10-26)
+
+M3는 #16 snapshot/공통 출력 → #17 Play/input → #18 독립 player → runtime 제어/회귀 PR의 stack이다.
+M2 최종 `050a8da`가 `feat/shared-editor-live-query`에 있으며 main에는 아직 선행 코드 전체가 반영되지 않았다.
+따라서 구현·검증과 main 병합 완료는 구분하며 이 PR들은 선행 병합을 기다리는 Draft이다.
+
+### 실제 실행한 검사
+
+- macOS ARM64에서 `python3 scripts/dev.py check`: rustfmt·Clippy `-D warnings`·Rust 테스트 85개와 doctest 1개·workspace build·CLI 계약 5+10건 통과.
+- 실제 native editor fixture에서 dirty 편집 → Play → Pause 정지 → 정확 73 tick → 실행 중 undo 거부 → Stop → undo 원복 → 재시작 run ID 교체. JSON·PNG SHA256 보존.
+- `python3 scripts/native_runtime_smoke.py`: 실제 editor 창과 외부 CLI/MCP의 start/pause/73 tick/동일 request ID 재시도/old run 거부/Stop 후 이동과 undo를 검사. 독립 player의 동일 snapshot frame hash를 비교하고 두 native screenshot에서 magenta fixture 픽셀을 확인한다.
+- 실제 독립 player 창에서 alpha checker와 좌하단 clipping 표시를 확인했다. headless 73 tick frame hash `26f080ad36e9e825`는 같은 snapshot의 editor와 일치했다.
+- CUA로 실제 canvas 클릭 뒤 D/Space 각각 약 1.5초 입력, 458개 CLI 관측에서 right/primary/pointer를 확인하고 release 후 버튼 해제를 확인했다.
+- 실제 TextEdit에 `ad`를 입력한 상태에서 원격 Play가 `editor_busy`를 반환하고 runtime은 null인 것을 확인했다.
+- raw egui regression으로 같은 frame의 key/button press-release, 화면 밖 pointer, focus/input 차단을 검사했다. 실제 키를 누른 채 OS focus를 잃는 조작은 별도 미확인이다.
+- `behavior_probe`의 정상 계산·문법 오류·무한 반복 budget 중단·실행 오류를 실행했다. 제품 행동 언어가 구현됐다는 뜻은 아니다.
+
+[editor 실제 화면](images/m3-editor-play-macos.png), [독립 player 실제 화면](images/m3-player-macos.png).
+네이티브 smoke의 control 조작은 테스트 host와 같은 production EditorApp 경로를 사용하며 물리 입력 시험과 구분한다.
+초기 검증에서 발견한 Play 검정 화면은 panel scope를 수정하여 해결했고 native screenshot의 fixture 색 검사로 회귀를 막는다.
+
+### 성능 기준선과 남은 범위
+
+macOS 27.0.1 ARM64, debug 빌드, 320×180, 16×16 alpha sprite 두 개의 기준선:
+약 19.959초 동안 1198 tick(60.023Hz), 1123 표시 요청(56.265Hz). frame은 GPU 완료 측정값이 아니다.
+player 프로세스 시작+load+100000 tick의 5회 wall time은 약 770.7/13.65/11.60/10.79/9.83ms로 cold/warm 차이가 컸다.
+해당 headless 측정의 max RSS는 10,551,296 bytes, peak footprint는 3,293,712 bytes였다. native GUI 메모리나 최대 부하의 60Hz 보장으로 해석하지 않는다.
+
+Windows x64와 macOS native 창 smoke는 PR의 GitHub Actions에 등록했다. CI 결과는 실행한 revision에서 별도로 확인하며,
+Windows 실제 사용자의 키보드·마우스·DPI, 최소 OS 실기기, Mac Intel/Windows ARM은 아직 미확인이다.
+Dock Quit의 취소 보존은 미확인/미지원 경계로 남아 있고 강제 종료 뒤 미저장 복구 checkpoint는 구현하지 않았다.
+현재 복구 지점은 마지막 성공 저장본이다. M10의 개발 환경 없는 패키지·서명·공증·외부 배포 인수는 남아 있다.

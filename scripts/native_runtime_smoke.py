@@ -3,12 +3,49 @@ import hashlib
 import json
 import subprocess
 import time
+import struct
+import zlib
 from pathlib import Path
 from native_session_smoke import McpClient, SUFFIX
 from smoke_readonly import png_pixel
 
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug'
+
+def assert_native_pixels(path):
+    """스크린샷 PNG를 표준 라이브러리로 복원해 검정/빈 프레임을 거부한다."""
+    data=path.read_bytes()
+    assert data[:8]==b"\x89PNG\r\n\x1a\n", path
+    offset=8; compressed=bytearray(); width=height=channels=0
+    while offset<len(data):
+        length=struct.unpack(">I",data[offset:offset+4])[0]
+        kind=data[offset+4:offset+8]; value=data[offset+8:offset+8+length]
+        if kind==b'IHDR':
+            width,height,depth,color,_,_,interlace=struct.unpack('>IIBBBBB',value)
+            assert depth==8 and color in [2,6] and interlace==0
+            channels=4 if color==6 else 3
+        if kind==b'IDAT': compressed.extend(value)
+        offset+=length+12
+    assert width>=320 and height>=180
+    raw=zlib.decompress(compressed); stride=width*channels; previous=bytearray(stride); magenta=0
+    assert len(raw)==height*(stride+1)
+    for y in range(height):
+        start=y*(stride+1); kind=raw[start]; row=bytearray(raw[start+1:start+1+stride])
+        for x in range(stride):
+            left=row[x-channels] if x>=channels else 0
+            up=previous[x]; corner=previous[x-channels] if x>=channels else 0
+            if kind==1: predictor=left
+            elif kind==2: predictor=up
+            elif kind==3: predictor=(left+up)//2
+            elif kind==4:
+                estimate=left+up-corner; a,b,c=abs(estimate-left),abs(estimate-up),abs(estimate-corner)
+                predictor=left if a<=b and a<=c else (up if b<=c else corner)
+            else: assert kind==0; predictor=0
+            row[x]=(row[x]+predictor)&255
+        magenta+=sum(row[x]>240 and row[x+1]<20 and row[x+2]>240 for x in range(0,stride,channels))
+        previous=row
+    assert magenta>0, f"native fixture pixels missing: {path}"
+    return {'width':width,'height':height,'magenta_pixels':magenta}
 
 def main():
     directory = ROOT / 'artifacts/native-runtime'
@@ -77,8 +114,14 @@ def main():
             _,receipt=mutate('restart',{'type':'run_start'});assert receipt['state']=='applied'
             next_id=inspect()['runtime']['run_id'];assert next_id!=run_id
             _,stale=mutate('stale',{'type':'run_stop','run_id':run_id},True);assert stale['state']=='rejected' and stale['error']['code']=='run_mismatch',stale
-            mutate('stop-new',{'type':'run_stop','run_id':next_id})
-            mutate('edit-after-stop',{'type':'undo'})
+            _,stopped=mutate('stop-new',{'type':'run_stop','run_id':next_id})
+            assert stopped['state']=='applied',stopped
+            _,edited=mutate('edit-after-stop',{'type':'move_entity','id':73,'position':{'x':57,'y':32}})
+            assert edited['state']=='applied' and inspect()['is_dirty'],edited
+            assert inspect()['project']['document']['scene']['entities'][0]['position']=={'x':57,'y':32}
+            _,undone=mutate('undo-after-stop',{'type':'undo'})
+            assert undone['state']=='applied' and not inspect()['is_dirty'],undone
+            assert inspect()['project']==first['project']
             assert hashlib.sha256(project.read_bytes()).hexdigest()==original
             (directory/'host-command.json').write_text(json.dumps({'id':2,'action':'close'}),encoding='utf-8')
             assert process.wait(timeout=10)==0
@@ -87,7 +130,8 @@ def main():
             assert player_state['tick']==73 and player_state['frame_hash']==after['runtime']['frame_hash']
             subprocess.run([str(BIN/f'examples/native_player_smoke{SUFFIX}'),str(project),str(directory)],check=True,timeout=30)
             assert (directory/'player-frame.png').exists()
-            summary={'result':'passed','physical_input':False,'exact_ticks':73,'editor':after['runtime'],'player':player_state,'observations':observations}
+            pixels={name:assert_native_pixels(directory/name) for name in ['frame-1.png','player-frame.png']}
+            summary={'pixels':pixels,'result':'passed','physical_input':False,'exact_ticks':73,'editor':after['runtime'],'player':player_state,'observations':observations}
             (directory/'runtime-summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
             print('M3 native editor/CLI/MCP/player smoke passed')
     finally:

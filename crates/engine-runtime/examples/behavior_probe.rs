@@ -45,10 +45,15 @@ fn execute(code: &[Instruction], budget: u32) -> Result<i64, String> {
             Instruction::Fail => return Err(format!("{}: 명시적 실행 오류", pc + 1)),
         }
     }
-    Err(format!("{}: 실행 예산 초과", pc + 1))
+    if pc == code.len() {
+        Ok(value)
+    } else {
+        Err(format!("{}: 실행 예산 초과", pc + 1))
+    }
 }
 fn main() {
     assert_eq!(execute(&compile("add 3\nadd 4").unwrap(), 100).unwrap(), 7);
+    assert_eq!(execute(&compile("add 3\nadd 4").unwrap(), 2).unwrap(), 7);
     assert!(compile("invalid").unwrap_err().contains("1:"));
     assert!(
         execute(&compile("jump 0").unwrap(), 10000)
