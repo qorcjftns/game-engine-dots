@@ -215,6 +215,8 @@ mod tests {
             id,
             position: Position { x: 40, y: 50 }
         }));
+        // 실제 commit_edits 경로처럼 확정한 좌표를 GUI 초안에도 반영한다.
+        app.synchronize_selection();
         let changed = inspect_connection_file(&path).unwrap();
         assert!(changed.revision > first.revision);
         assert!(changed.is_dirty);

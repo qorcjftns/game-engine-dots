@@ -227,3 +227,7 @@ opt-in 연결 표시와 연결 파일 존재·0600 권한, native Open으로 프
 앱 inventory에 프로세스가 없고 연결 파일도 삭제된 것을 확인했습니다.
 독립 파일 검사에서 마지막 저장 이름 ‘M2 연결 중 저장 검토’가 유지되고 ‘M2 버릴 초안’은 없었습니다.
 최소화 동작과 실제 GUI↔CLI 교차 조회, Windows native/DPI는 이번 UI 확인에 포함하지 않습니다.
+
+후속 양 OS CI에서 transport 회귀는 통과했으며 GUI core 회귀의 fixture draft 동기화 누락이 확인됐습니다.
+테스트가 직접 명령을 적용한 뒤 실제 GUI commit 경로와 같이 draft를 동기화하도록 보완했습니다.
+미동기화 draft가 Undo 전에 추가 명령으로 확정되는 테스트 설정 문제이며 production 편집 규칙은 바꾸지 않았습니다.
