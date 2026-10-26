@@ -37,6 +37,7 @@ impl EditorApp {
         if !self.behavior_pending() {
             return true;
         }
+        self.behavior_validation.clear();
         let draft = self.behavior_draft.clone().unwrap();
         self.execute(EditCommand::UpdateBehavior {
             id: draft.id,
@@ -57,6 +58,7 @@ impl EditorApp {
         let mut bind = false;
         let mut unbind = false;
         let mut remove = false;
+        let mut source_changed = false;
         let pending = self.behavior_pending();
         let resources = self
             .workspace
@@ -75,9 +77,9 @@ impl EditorApp {
                 create=ui.add_enabled(self.workspace.session.is_some(),egui::Button::new("새 행동")).clicked();
             });
             if let Some(draft)=&mut self.behavior_draft {
-                ui.horizontal(|ui| {ui.label("파일 이름");ui.text_edit_singleline(&mut draft.file); if pending { ui.label("● 미확정 입력"); }});
+                ui.horizontal(|ui| {ui.label("파일 이름");source_changed |= ui.text_edit_singleline(&mut draft.file).changed(); if pending { ui.label("● 미확정 입력"); }});
                 egui::ScrollArea::vertical().max_height(260.0).show(ui,|ui| {
-                    ui.add(egui::TextEdit::multiline(&mut draft.source).code_editor().desired_rows(12).desired_width(f32::INFINITY));
+                    source_changed |= ui.add(egui::TextEdit::multiline(&mut draft.source).code_editor().desired_rows(12).desired_width(f32::INFINITY)).changed();
                 });
                 ui.horizontal(|ui| {
                     validate=ui.button("문법 검증").clicked(); apply=ui.button("적용").clicked(); reset=ui.button("입력 되돌리기").clicked(); remove=ui.button("행동 삭제").clicked();
@@ -86,10 +88,11 @@ impl EditorApp {
                     bind=ui.add_enabled(self.editing.selected.is_some(),egui::Button::new("선택 개체에 연결")).clicked();
                     unbind=ui.add_enabled(self.editing.selected.is_some(),egui::Button::new("선택 개체 연결 해제")).clicked();
                 });
-                if let Some(entity)=self.workspace.session.as_ref().and_then(|s|s.document().scene.entities.iter().find(|e|Some(e.id)==self.editing.selected)) {ui.label(format!("선택: {} · 행동 {:?}",entity.name,entity.behavior_id.map(|id|id.0)));}
+                if let Some(entity)=self.workspace.session.as_ref().and_then(|s|s.document().scene.entities.iter().find(|e|Some(e.id)==self.editing.selected)) {let binding=resources.iter().find(|b|Some(b.id)==entity.behavior_id).map_or("없음",|b|b.file.as_str()); ui.label(format!("선택: {} · 행동: {}",entity.name,binding));}
                 ui.small("x/y/state: tick 시작값 · move(dx,dy)/set_position(x,y)/set_state(n) · log(문자열)");
                 ui.small("적용 후 Play. 문법 검증은 실행하지 않으며 실행 오류는 Play에서 확인합니다.");
             } else { ui.label("새 행동을 만들어 소스를 작성하세요."); }
+            if source_changed { self.behavior_validation.clear(); }
             for message in &self.behavior_validation { ui.colored_label(egui::Color32::LIGHT_YELLOW,message); }
         });
         if !open {
@@ -205,6 +208,7 @@ mod tests {
         )
         .unwrap();
         app.load_behavior(Some(behavior_id));
+        app.behavior_validation.push("old source diagnostic".into());
         app.behavior_draft.as_mut().unwrap().source = "move(3,0);".into();
         assert!(app.has_unsaved_changes());
         assert!(app.editor_busy(&ctx));
@@ -227,6 +231,7 @@ mod tests {
         );
         app.process_action(&ctx, crate::editor_actions::EditorAction::Save);
         assert!(!app.behavior_pending());
+        assert!(app.behavior_validation.is_empty());
         let s = app.workspace.session.as_ref().unwrap();
         assert_eq!(s.document().behaviors[0].source, "move(3,0);");
         assert!(!s.is_dirty());
