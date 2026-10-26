@@ -187,6 +187,8 @@ def main():
             # native player도 같은 행동 코드를 읽고 실제 GPU output을 만든다.
             subprocess.run([str(BIN/f'examples/native_player_smoke{SUFFIX}'),str(project),str(directory)],check=True,timeout=30)
             native_state=read(directory/'player-frame.json')
+            assert native_state['runtime']['tick']>0 and native_state['runtime']['error'] is None
+            assert native_state['runtime']['entities'][0]['state']==native_state['runtime']['tick']
             viewport=native_state['viewport']
             native_position=native_state['runtime']['entities'][0]['position']
             assert native_position['x']==40+min(native_state['runtime']['tick'],40)

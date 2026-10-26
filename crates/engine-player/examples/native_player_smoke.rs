@@ -10,6 +10,7 @@ use std::sync::{
 struct Smoke {
     player: player::Player,
     frames: u32,
+    capture_at: Option<u32>,
     output: std::path::PathBuf,
     captured: Arc<AtomicBool>,
 }
@@ -24,10 +25,11 @@ impl App for Smoke {
         self.player.ui(ui, frame);
         self.frames += 1;
         // 캡처 callback은 후속 frame에 올 수 있다. 화면을 먼저 고정해 metadata tick과 일치시킨다.
-        if self.frames == 8 {
+        if self.capture_at.is_none() && self.frames >= 8 && self.player.run.status().tick > 0 {
             self.player.run.pause(true);
+            self.capture_at = Some(self.frames + 2);
         }
-        if self.frames == 10 {
+        if self.capture_at == Some(self.frames) {
             let path = self.output.join("player-frame.png");
             let captured = self.captured.clone();
             let metadata = self.output.join("player-frame.json");
@@ -69,6 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     time: std::time::Instant::now(),
                 },
                 frames: 0,
+                capture_at: None,
                 output,
                 captured: Arc::new(AtomicBool::new(false)),
             }))

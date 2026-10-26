@@ -370,13 +370,15 @@ M4의 macOS ARM64 로컬 전체 검사는 Rust 테스트99개+doctest1개, fmt/C
 - headless player 실패에서도 stdout JSON에 정확한 error 위치가 남음.
 
 native 자동 검사는 test host가 production EditorApp/Player를 호출하며 물리 키 입력을 대신하지 않습니다.
-player screenshot callback이 후속 frame에 도착하므로 캡처 전에 pause하고 두 frame을 기다려 metadata와 실제 pixel을 일치시켰습니다.
+player screenshot callback이 후속 frame에 도착하므로 캡처 전에 pause하고 두 frame을 기다려 metadata와 실제 pixel을 일치시켰습니다. native player는 tick>0·state==tick·error 없음까지 검사해 초기 정적 화면만으로 통과하지 않습니다.
 증거는 `artifacts/native-behavior/behavior-summary.json`, frame PNG, player-frame JSON, editor/MCP 로그이며 CI artifact에도 포함합니다.
 macOS와 Windows에서 같은 회귀를 CI에 추가했습니다. 새 CI 실행 결과는 해당 PR head에서 별도로 확인합니다.
 
 별도 QA 에이전트가 macOS 실제 GUI에서 새 행동 생성→소스 직접 작성→문법 검증→적용→개체 연결→저장을 수행했습니다.
 실제 D 키 약300ms로 x40→78 이동과 Space 로그를 확인했고, Stop 후 원본 x40·revision·dirty가 보존됐습니다.
 연결 Undo/Redo, 정상 종료/재열기의 source와 binding 유지, syntax2행 및 runtime3행/entity73/tick1 오류와 tick0 rollback을 확인했습니다.
+실제 GUI 무한 loop도 budget 오류2행/entity73/tick1에서 중단됐고 Stop/Undo 뒤 정상 소스로 복구했습니다.
+GUI에서 저장한 같은 프로젝트의 editor/player73tick은 위치(40,28)·state73·화면 hash `a75c9e075c6e4b25`가 일치했습니다.
 
 ![M4 소스 작성](images/m4-authoring-macos.png)
 ![M4 실제 키 입력](images/m4-input-macos.png)
@@ -384,7 +386,7 @@ macOS와 Windows에서 같은 회귀를 CI에 추가했습니다. 새 CI 실행 
 
 독립 리뷰에서 Rhai 표준 패키지의 `pad(text,2,"")` native 무한 반복을 발견해 패키지 없는 raw engine으로 교체했습니다.
 동적 변수의 사후 타입 검사로 정확한 대입 줄을 알 수 없는 문제는 읽기 상수+typed host 함수로 바꿔 해결했습니다.
-속성 입력 취소가 별도 행동 source draft까지 폐기하던 문제도 취소 범위를 분리하고 회귀 테스트를 추가했습니다.
+속성 입력 취소가 별도 행동 source draft까지 폐기하던 문제도 취소 범위를 분리하고 회귀 테스트를 추가했습니다. 소스 수정 뒤 이전 문법 결과가 남던 표시도 수정 시 즉시 지우도록 보완했습니다.
 
 이 단계는 OS process sandbox나 byte 단위 RSS hard quota, full IDE/핫리로드, M5 물리, M10 패키징/서명 완료를 뜻하지 않습니다.
 Windows 실제 사용자 입력·여러 DPI, 최소 OS 실기기, Dock Quit 취소와 강제 종료 checkpoint는 기존 미확인/미지원 경계를 유지합니다.
