@@ -55,9 +55,16 @@ impl GameView {
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
         );
-        if response.clicked() {
-            self.focused = true;
-            response.request_focus();
+        for event in ui.input(|i| i.events.clone()) {
+            if let egui::Event::PointerButton {
+                pos, pressed: true, ..
+            } = event
+            {
+                self.focused = rect.contains(pos);
+                if self.focused {
+                    response.request_focus();
+                }
+            }
         }
         let enabled = allow_input
             && self.focused
@@ -65,7 +72,7 @@ impl GameView {
             && !ui.ctx().text_edit_focused()
             && ui.input(|i| i.focused);
         if enabled {
-            let mut pointer = ui
+            let final_pointer = ui
                 .input(|i| i.pointer.hover_pos())
                 .filter(|p| rect.contains(*p))
                 .map(|p| {
@@ -74,6 +81,7 @@ impl GameView {
                         ((p.y - rect.min.y) * ppp / camera.scale as f32).floor() as i32,
                     ]
                 });
+            let mut pointer = final_pointer;
             for event in ui.input(|i| i.events.clone()) {
                 match event {
                     egui::Event::Key { key, pressed, .. } => {
@@ -101,7 +109,7 @@ impl GameView {
                 }
                 run.set_input(self.actions(pointer));
             }
-            run.set_input(self.actions(pointer));
+            run.set_input(self.actions(final_pointer));
         } else {
             self.keys.clear();
             self.mouse = false;
@@ -119,5 +127,106 @@ impl GameView {
             primary: self.keys.contains(&egui::Key::Space) || (self.mouse && pointer.is_some()),
             pointer,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn key(pressed: bool) -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::A,
+            physical_key: Some(egui::Key::A),
+            pressed,
+            repeat: false,
+            modifiers: Default::default(),
+        }
+    }
+    fn click(pos: Pos2, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        }
+    }
+    fn frame(
+        ctx: &egui::Context,
+        view: &mut GameView,
+        run: &mut PlaySession,
+        events: Vec<egui::Event>,
+        focused: bool,
+        allow: bool,
+    ) {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(640.0, 360.0))),
+                focused,
+                events,
+                ..Default::default()
+            },
+            |ui| view.show(ui, run, allow),
+        );
+        output.textures_delta.clear();
+    }
+    #[test]
+    fn real_egui_taps_keep_edges_and_suppressed_focus_clears_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 32, 18)
+            .unwrap();
+        let mut run = PlaySession::new(engine_runtime::RuntimeWorld::snapshot(&s).unwrap(), 1);
+        run.pause(true);
+        let ctx = egui::Context::default();
+        let mut view = GameView::default();
+        let inside = Pos2::new(320.0, 180.0);
+        frame(&ctx, &mut view, &mut run, vec![], true, true);
+        frame(
+            &ctx,
+            &mut view,
+            &mut run,
+            vec![
+                egui::Event::PointerMoved(inside),
+                click(inside, true),
+                click(inside, false),
+            ],
+            true,
+            true,
+        );
+        run.step(1).unwrap();
+        frame(
+            &ctx,
+            &mut view,
+            &mut run,
+            vec![key(true), key(false)],
+            true,
+            true,
+        );
+        run.step(1).unwrap();
+        assert!(run.status().pressed.left && run.status().released.left);
+        assert!(!run.status().input.left);
+        frame(
+            &ctx,
+            &mut view,
+            &mut run,
+            vec![
+                click(inside, true),
+                click(inside, false),
+                egui::Event::PointerMoved(Pos2::new(900.0, 500.0)),
+            ],
+            true,
+            true,
+        );
+        run.step(1).unwrap();
+        assert!(run.status().pressed.primary && run.status().released.primary);
+        assert_eq!(run.status().input.pointer, None);
+        frame(&ctx, &mut view, &mut run, vec![key(true)], true, true);
+        run.step(1).unwrap();
+        assert!(run.status().input.left);
+        frame(&ctx, &mut view, &mut run, vec![], false, true);
+        run.step(1).unwrap();
+        assert!(!run.status().input.left);
+        frame(&ctx, &mut view, &mut run, vec![key(true)], true, false);
+        run.step(1).unwrap();
+        assert!(!run.status().input.left);
     }
 }

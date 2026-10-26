@@ -169,3 +169,24 @@ mod tests {
         assert!(!r.status.pressed.left);
     }
 }
+
+#[cfg(test)]
+mod pause_regression {
+    use super::*;
+    #[test]
+    fn pause_discards_pending_taps() {
+        let dir = tempfile::tempdir().unwrap();
+        let s =
+            engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 2, 2).unwrap();
+        let mut run = PlaySession::new(crate::RuntimeWorld::snapshot(&s).unwrap(), 1);
+        run.set_input(ActionInput {
+            left: true,
+            ..Default::default()
+        });
+        run.pause(true);
+        run.step(1).unwrap();
+        assert!(!run.status().pressed.left);
+        assert!(!run.status().released.left);
+        assert!(!run.status().input.left);
+    }
+}
