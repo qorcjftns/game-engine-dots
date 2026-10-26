@@ -10,6 +10,7 @@ impl eframe::App for Player {
     fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         if !ctx.input(|i| i.focused) {
             self.run.clear_input();
+            self.view.release_focus();
         }
         let now = std::time::Instant::now();
         self.run

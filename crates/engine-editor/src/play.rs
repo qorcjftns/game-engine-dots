@@ -42,8 +42,7 @@ impl EditorApp {
                 if !run.status().paused || !(1..=100000).contains(ticks) {
                     return Err(invalid("Pause 상태에서 1~100000 tick을 지정하세요.".into()));
                 }
-                run.set_input(*input);
-                run.step(*ticks).map_err(|e| invalid(e.into()))?;
+                run.step_with_input(*ticks, *input).map_err(|e| invalid(e.into()))?;
             }
             C::RunStop { .. } => self.stop_play(),
             _ => unreachable!(),
@@ -89,6 +88,7 @@ impl EditorApp {
             || self.show_about
         {
             run.clear_input();
+            self.game_view.release_focus();
         }
         let now = std::time::Instant::now();
         if let Some(previous) = self.play_time.replace(now) {

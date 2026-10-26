@@ -10,6 +10,11 @@ pub struct GameView {
     mouse: bool,
 }
 impl GameView {
+    pub fn release_focus(&mut self) {
+        self.keys.clear();
+        self.mouse = false;
+        self.focused = false;
+    }
     pub fn show(&mut self, ui: &mut egui::Ui, run: &mut PlaySession, allow_input: bool) {
         let doc = run.world.document();
         let (width, height) = (doc.logical_width, doc.logical_height);
