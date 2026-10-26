@@ -256,3 +256,11 @@ artifact는 frame PNG·비밀값 없는 결과 JSON·host 로그만 포함하고
 
 native example용 dev-dependency는 이미 잠긴 image 0.25.10과 serde_json을 재사용했습니다.
 MCP stdio와 실제 SDK 연결은 다음 PR 범위입니다.
+
+첫 native CI는 양 OS에서 실제 창/renderer와 CLI 편집·GUI undo/redo·저장/재열기까지 진행했습니다.
+첫 frame PNG는 완전한 파일이었으나 두 번째 캡처가 생성 직후 0바이트일 때 orchestration이 읽어 실패했습니다.
+캡처를 명시적 PNG 형식의 임시 파일에 완성한 뒤 rename하여 게시하도록 보완했습니다.
+수정 후 전체 native 성공·정상 종료/정리는 새 CI 결과로 확인하며 첫 시도를 통과로 기록하지 않습니다.
+첫 renderer PNG는 Mac 1024×653·Windows 1024×768, 배율 100%에서 사람이 직접 확인했습니다.
+한글·dirty 표시·좌표(60,38)·PNG 리소스와 뷰포트의 실제 magenta 픽셀 위치가 일치했습니다.
+이는 CI의 첫 이동 frame 검토이며 Windows 실기기/DPI 전체 인수를 뜻하지 않습니다.
