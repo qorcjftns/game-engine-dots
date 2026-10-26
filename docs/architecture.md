@@ -22,7 +22,7 @@ Rust, [egui](https://github.com/emilk/egui)/[eframe](https://docs.rs/eframe/late
 | `engine-desktop` | Macroquad 출력 검증 데모 |
 
 M3에서 `engine-runtime`이 문서·PNG 사본/입력/tick/논리 출력을, `engine-host`가 공통 egui 입력·표시를,
-`engine-player`가 편집 UI 없는 창 수명을 담당합니다. 행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전입니다.
+`engine-player`가 편집 UI 없는 창 수명을 담당합니다. M4는 문서 v2 행동 리소스·바인딩과 raw Rhai 제한 실행기를 연결합니다. 도트/대화형 에셋 제작·export는 아직 구현 전입니다.
 기존 데모 실행을 프로젝트를 읽는 독립 player의 완성 근거로 사용하지 않습니다.
 새 크레이트와 라이브러리는 실제 경계·실험 결과가 정해질 때 추가합니다.
 
@@ -76,7 +76,9 @@ GUI 패널과 글자는 OS DPI를 따릅니다. 게임 장면·게임 텍스트/
 
 v1에는 사용자가 엔진 소스를 수정하지 않고 행동을 작성하는 경로 하나가 필요합니다.
 M3/4 실험에서 작성/검증 방법·실행 호스트·허용 API·중단·메모리/시간 예산·오류 위치·export 호환성을 선택합니다.
-특정 언어, full IDE, 핫리로드를 먼저 확정하지 않습니다.
+M4 실험과 독립 리뷰 결과 Rhai 1.27.0 raw engine + 명시한 정수 host API를 선택했습니다.
+소스는 JSON 안에 저장하며 내장 multiline 작성·문법 검증·연결 경로를 제공합니다. full IDE·핫리로드는 포함하지 않습니다.
+세부 예산과 오류/tick 원자성은 [runtime 경계](runtime.md#m4-행동-실행-기반)를 따릅니다.
 행동 오류·무한 루프가 editor를 멈추거나 편집 원본을 손상시키면 선택 실험을 통과한 것으로 보지 않습니다.
 프로젝트 행동 코드 실행과 MCP의 임의 호스트 코드/shell 실행은 구분합니다.
 
