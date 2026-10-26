@@ -7,6 +7,7 @@ members = [
     "crates/engine-document",
     "crates/engine-protocol",
     "crates/engine-control",
+    "crates/engine-mcp",
 ]
 default-members = ["crates/engine-core", "crates/engine-cli"]
 resolver = "3"

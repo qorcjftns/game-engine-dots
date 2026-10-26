@@ -5,15 +5,24 @@
 
 ## 현재 기반과 미구현 영역
 
-main `57b4d2a4`에는 M1 프로젝트 문서와 GUI 편집이 있습니다.
+M1의 프로젝트 문서·GUI 편집 기반에 M2의 공동 세션 구현을 추가했습니다.
+M2의 PR 병합 상태와 OS별 실제 검증은 [검증 기록](verification.md)을 따릅니다.
 Rust, [egui](https://github.com/emilk/egui)/[eframe](https://docs.rs/eframe/latest/eframe/) 0.37.0,
-[wgpu](https://wgpu.rs/) 경로로 GUI를 구성했고 문서 타입은 GUI 라이브러리에 의존하지 않습니다.
-`engine-core`는 화면·시간 규칙, `engine-document`는 문서·명령·IO·이력,
-`engine-editor`는 GUI·입력·리소스 표시를 맡습니다.
-`engine-cli`는 현재 info·viewport만 제공합니다. Macroquad의 `engine-desktop`은 출력 검증 데모입니다.
+[wgpu](https://wgpu.rs/)로 GUI를 구성하며 문서와 프로토콜 타입은 GUI 라이브러리에 의존하지 않습니다.
 
-공동 세션, 새 runtime·행동 코드·도트/대화형 에셋 제작·player·export는 아직 구현 전입니다.
-기존 데모의 실행 성공을 프로젝트를 읽는 독립 player의 완성 근거로 사용하지 않습니다.
+| 크레이트 | 현재 책임 |
+| --- | --- |
+| `engine-core` | 외부 의존성 없는 화면 배치·시간 규칙 |
+| `engine-document` | 프로젝트 문서·PNG·편집 명령·IO·undo/redo |
+| `engine-protocol` | disk/live 조회·변경 요청·receipt·오류의 공통 JSON 계약 |
+| `engine-control` | 게시 snapshot·로컬 인증 TCP·변경 큐·원장·공통 client |
+| `engine-editor` | 문서 단독 소유·GUI 입력·리소스 표시·logic에서 변경 적용 |
+| `engine-cli` | 기존 info/viewport·저장 문서 조회·live 조회/변경/결과 확인 |
+| `engine-mcp` | 공식 rmcp stdio 도구 3개에서 control client 직접 호출 |
+| `engine-desktop` | Macroquad 출력 검증 데모 |
+
+새 runtime·행동 코드·도트/대화형 에셋 제작·player·export는 아직 구현 전입니다.
+기존 데모 실행을 프로젝트를 읽는 독립 player의 완성 근거로 사용하지 않습니다.
 새 크레이트와 라이브러리는 실제 경계·실험 결과가 정해질 때 추가합니다.
 
 ## 서로 다른 네 상태
@@ -42,6 +51,8 @@ M3에서 editor와 독립 player의 실행·렌더 경계를 공유하고, 편�
 실행 중인 GUI 한 개/프로젝트 한 개에 CLI·MCP를 연결합니다.
 외부 프로세스가 JSON을 직접 덮어쓰는 방식으로 동기화하지 않습니다.
 직렬 명령 처리·단조 revision·새 session ID·request ID 재조회 규칙은 [접근 규약](agent-interface.md)을 따릅니다.
+TCP worker는 GUI가 게시한 확정 snapshot을 조회하고, 변경 큐는 GUI logic에서 검증·실행합니다.
+CLI와 MCP는 같은 control client·원장을 사용하며 자체 문서·이력·저장 경로를 만들지 않습니다.
 
 입력 draft·드래그·대화상자 중에는 확정 문서를 조회할 수 있지만 외부 변경·undo/redo·저장은 거부합니다.
 요청 처리를 화면 그리기에만 묶지 않아 최소화·가려짐 중에도 기한과 결과를 관리합니다.
