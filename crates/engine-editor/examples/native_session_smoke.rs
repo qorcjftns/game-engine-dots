@@ -102,14 +102,18 @@ impl NativeSmoke {
                 let path = self.directory.join(format!("frame-{id}.png"));
                 ctx.request_screenshot(move |pixels| {
                     let bytes: Vec<_> = pixels.pixels.iter().flat_map(|p| p.to_array()).collect();
-                    image::save_buffer(
-                        path,
+                    let temporary = path.with_extension("pending");
+                    image::save_buffer_with_format(
+                        &temporary,
                         &bytes,
                         pixels.size[0] as u32,
                         pixels.size[1] as u32,
                         image::ColorType::Rgba8,
+                        image::ImageFormat::Png,
                     )
                     .unwrap();
+                    // 존재만 관찰하는 orchestration도 완성된 PNG만 읽도록 게시한다.
+                    fs::rename(temporary, path).unwrap();
                 });
             }
             "close" => self.editor.process_action(ctx, EditorAction::Quit),
