@@ -264,3 +264,40 @@ MCP stdio와 실제 SDK 연결은 다음 PR 범위입니다.
 첫 renderer PNG는 Mac 1024×653·Windows 1024×768, 배율 100%에서 사람이 직접 확인했습니다.
 한글·dirty 표시·좌표(60,38)·PNG 리소스와 뷰포트의 실제 magenta 픽셀 위치가 일치했습니다.
 이는 CI의 첫 이동 frame 검토이며 Windows 실기기/DPI 전체 인수를 뜻하지 않습니다.
+
+PR3 수정 `506c239`의 [자동 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40254179598)는 양 OS 모두 통과했습니다.
+실제 TCP 회귀와 native eframe/renderer↔별도 CLI 편집, GUI action undo/redo·저장/재열기,
+정상 프로세스 종료·descriptor 삭제까지 script assertion과 `native-summary.json`의 passed 결과로 확인했습니다.
+사람이 최종 frame-6 PNG도 검토해 dirty 해제·저장 완료 상태, 좌표(60,38)와 실제 magenta 픽셀,
+PNG 리소스 유지 및 한글 UI의 잘림 없음을 확인했습니다. 종료/정리는 PNG만으로 판단하지 않았습니다.
+이 단계까지 실제 OS 최소화 상태와 MCP 교차는 미검증이므로 다음 PR에서 별도로 시도합니다.
+
+## M2 PR4: 공식 MCP stdio와 교차 검증
+
+공식 rmcp 3.7.0 SDK로 session_inspect·session_mutate·session_result를 제공하며
+CLI와 같은 control client·요청 원장을 사용합니다. stdout은 SDK wire만 출력하고
+조회/접수 응답과 편집 terminal state를 구분합니다.
+
+신규 SDK 의존성은 정상 CI의 Cargo가 생성하고 실제 컴파일한 lockfile을 반영했습니다.
+초기 bootstrap은 양 OS에서 SDK 포함 검사를 통과한 뒤 예상한 lockfile 변경 검사만 실패했습니다.
+공개 registry만 임시 checkout에 복원했으며 임시 bootstrap workflow 단계는 제거했습니다.
+
+macOS ARM64 offline/locked 통합 검사에서 non-TCP 64개와 doctest 1개,
+workspace rustfmt·Clippy(all targets, 경고 오류 처리), 전체/네이티브 example 빌드와 기존 CLI 15건이 통과했습니다.
+실제 SDK stdio 별도 프로세스의 initialize·tools/list·tools/call, stdout JSON 전용,
+typed 입력·구조화된 연결 오류와 추가 필드 거부를 포함합니다.
+검사 중 발견한 serde unit 명령의 추가 필드 무시 문제는 공통 strict wire Deserialize로 보완해
+CLI와 MCP 모두 같은 입력 규칙을 유지했습니다.
+
+실제 TCP 9개는 로컬 sandbox 때문에 이 통과 수에 포함하지 않으며 정상 양 OS CI에서 필수 실행합니다.
+`python scripts/dev.py native-mcp-smoke`는 실제 창의 OS 최소화 상태를 관측한 뒤
+공식 SDK 프로세스의 변경을 CLI에서 재조회하고 같은 receipt/replay를 확인하도록 작성했습니다.
+최소화 중 logic의 문서 변경을 관측하고 실제 restore 상태를 확인한 후
+같은 GUI undo/redo·저장/재열기·frame 캡처·정상 종료/descriptor 정리까지 검사합니다.
+OS 상태가 관측되지 않거나 30초를 넘으면 실패합니다. 실제 실행은 CI 결과로 별도 갱신합니다.
+이 test-only adapter의 GUI action 전달은 물리 마우스 입력 및 여러 DPI 인수와 구분합니다.
+
+마지막 SDK lifecycle 보강에서는 초기화 지원 최신 2025-11-25, 이전 2024-11-05의 협상과
+최신 2026-07-28의 초기화 없는 SDK list/call 경로를 각각 실제 stdio 프로세스로 통과했습니다.
+native 교차 클라이언트는 초기화를 지원하는 2025-11-25를 명시합니다.
+기존 통합 64개에 새 SDK 호환 2개를 더한 최종 로컬 non-TCP 검사 범위는 66개입니다.

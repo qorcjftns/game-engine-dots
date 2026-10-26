@@ -142,7 +142,7 @@ def main():
     parser.add_argument(
         "command",
         choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport",
-                 "project", "scene", "session", "native-smoke", "build"],
+                 "project", "scene", "session", "native-smoke", "native-mcp-smoke", "build"],
     )
     # 하위 CLI의 --connection-file 같은 옵션을 이 파서가 가로채지 않는다.
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
@@ -173,9 +173,13 @@ def main():
         run([sys.executable, str(ROOT / "scripts" / "smoke_readonly.py")])
     elif arguments.command == "test":
         cargo("test", "--locked", "--workspace")
-    elif arguments.command == "native-smoke":
+    elif arguments.command in ["native-smoke", "native-mcp-smoke"]:
         cargo("build", "--locked", "-p", "engine-editor", "--example", "native_session_smoke")
-        run([sys.executable, str(ROOT / "scripts" / "native_session_smoke.py")])
+        command = [sys.executable, str(ROOT / "scripts" / "native_session_smoke.py")]
+        if arguments.command == "native-mcp-smoke":
+            cargo("build", "--locked", "-p", "engine-mcp")
+            command.append("--mcp")
+        run(command)
     elif arguments.command == "editor":
         cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":

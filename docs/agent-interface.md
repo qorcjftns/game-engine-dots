@@ -2,7 +2,7 @@
 
 전체 v1 범위·순서·인수 조건은 [개발계획](roadmap.md)을 기준으로 합니다.
 현재 CLI는 info·viewport, 저장된 프로젝트/장면 조회와 opt-in GUI live 조회를 지원합니다.
-같은 GUI 세션의 기존 스프라이트 변경·이력·저장도 요청할 수 있습니다. MCP는 다음 단계입니다.
+같은 GUI 세션의 기존 스프라이트 변경·이력·저장과 공식 SDK 기반 MCP stdio 어댑터를 지원합니다.
 
 ```sh
 target/debug/engine-cli info
@@ -89,12 +89,39 @@ GUI는 실행 직전에 session/revision/busy/deadline을 다시 확인합니다
 현재 세션의 `unknown_request`도 미적용 증거로 단정하지 않습니다. 새 ID로 blind retry하지 않습니다.
 프로젝트 교체·재시작은 새 session ID와 원장을 만들고 이전 queue를 버립니다. 이전 결과를 영속 보관하지 않습니다.
 
+## MCP stdio 사용
+
+[공식 Rust SDK rmcp](https://github.com/modelcontextprotocol/rust-sdk)의 stdio 서버를 사용합니다.
+MCP 클라이언트의 서버 설정에서 실행 파일을 `target/debug/engine-mcp`(Windows는 `.exe`),
+인자를 `--connection-file /사용자/외부경로/control.json`으로 지정합니다. 경로는 절대 경로여야 합니다.
+MCP 서버 프로세스 자체가 GUI를 열거나 연결 파일을 새로 만들지는 않습니다. 실행 중인 opt-in GUI가 필요합니다.
+버전 처리는 rmcp에 맡깁니다. 실제 stdio 회귀는 2025-11-25의 initialize/list/call,
+2024-11-05 초기화 호환, 2026-07-28의 요청 metadata 기반 no-initialize list/call을 확인합니다.
+SDK의 structured 응답 helper가 JSON과 텍스트 content를 함께 제공하며 별도 호환 계층은 만들지 않습니다.
+
+| 도구 | 입력 | 반환 |
+| --- | --- | --- |
+| `session_inspect` | 빈 객체 `{}` | 현재 확정 문서·session/revision·busy |
+| `session_mutate` | 위 MutationRequest와 같은 필드·typed command | queued/running/applied/rejected/expired receipt |
+| `session_result` | `session_id`, `request_id` | 같은 공통 원장의 receipt |
+
+먼저 inspect → 그 session/revision으로 mutate → result에서 terminal state 확인 순서로 사용합니다.
+MCP의 JSON-RPC id와 편집 중복 방지용 request_id는 별개입니다. transport 응답·도구 호출 성공은 편집 적용 완료가 아닙니다.
+`structuredContent`는 CLI와 같은 protocol_version/source/status/data 또는 error 계약을 담습니다.
+공통 client 오류는 MCP `isError: true`로 표시하고, 정상 조회한 rejected receipt는 data/state/error 그대로 전달합니다.
+알 수 없는 명령·누락 필드·잘못된 정수·추가 필드는 SDK typed 입력 단계에서 거부하며 임의 JSON을 명령으로 추측하지 않습니다.
+
+MCP는 control client를 직접 호출하고 CLI 출력 파싱·별도 문서/이력·프로젝트 직접 쓰기 경로를 만들지 않습니다.
+전송 실패/취소 뒤 이미 접수됐을 가능성이 있으면 동일 session/request ID 결과를 확인합니다. 자동 새 ID 재시도는 하지 않습니다.
+stdio stdout은 SDK wire 전용이며 비밀 token과 요청 원문을 진단 로그로 내보내지 않습니다.
+실제 SDK initialize/list/call process 검사, GUI↔CLI↔MCP 교차 적용·재조회·저장/재열기는 별도 검증 근거로 기록합니다.
+
 ## M2: 같은 편집 세션 사용
 
 도입 순서는 읽기 전용 디스크 검사/조회 → GUI live 조회 → 기존 편집·undo/redo·저장 CLI →
 [공식 Rust MCP SDK rmcp](https://github.com/modelcontextprotocol/rust-sdk)의 stdio 어댑터입니다.
 GUI 하나가 연 프로젝트 하나를 대상으로 하며 CLI·MCP가 별도 문서를 만들어 파일을 덮어쓰지 않습니다.
-후속 변경·MCP의 SDK와 세부 계약은 구현 때 검증합니다.
+세 도구는 공통 계약·control client를 재사용하며 추가 기능의 세부 계약은 구현 때 검증합니다.
 
 조회 결과에서 저장 파일인지 실행 중인 문서인지 구분합니다.
 입력·드래그·대화상자 중에도 읽기는 확정 문서·revision·busy 상태를 반환하고,

@@ -25,8 +25,8 @@ AI 후보는 비교·수동 보정·승인 후 새 버전으로 적용하며, pr
 전체 단계, 지원 범위와 최종 인수 조건은 [개발계획](docs/roadmap.md)을 기준으로 합니다.
 
 현재 M1은 프로젝트 생성·PNG 배치·선택·이름/위치·드래그·undo/redo·저장·재열기까지 연결했습니다.
-다음 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 단계입니다.
-공동 세션·새 runtime·행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전이며, 이 전체 계획에서 순서와 완료 기준을 정합니다.
+현재 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 구현과 통합 검증을 진행합니다.
+새 runtime·행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전이며, 전체 계획에서 순서와 완료 기준을 정합니다.
 검증용 게임/장면은 엔진의 기능을 확인하기 위한 fixture입니다.
 
 GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안의 콘텐츠에만
@@ -95,6 +95,8 @@ Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --wo
 `target/debug/engine-editor --agent-control --connection-file /사용자/경로/editor-connection.json`을 실행한 뒤
 `target/debug/engine-cli session inspect --connection-file /사용자/경로/editor-connection.json`으로 조회합니다.
 변경 접수 응답의 queued/running은 적용 성공이 아니므로 result로 결과를 확인합니다.
+MCP 클라이언트에는 `target/debug/engine-mcp --connection-file /사용자/외부경로/editor-connection.json`을
+stdio 서버로 등록합니다. 제공 도구는 session_inspect·session_mutate·session_result이며 같은 GUI 통로를 사용합니다.
 연결 파일은 비밀 token을 포함하므로 공유하거나 저장소에 넣지 않습니다. 상세 제한은 [접근 규약](docs/agent-interface.md)을 따릅니다.
 
 ## 코드 위치
@@ -123,9 +125,10 @@ workspace 빌드·CLI 계약 5개를 확인했습니다. 최종 편집 소스의
 실제 macOS/Retina 200%에서 PNG 배치·한글 개체 이름·좌표 수정·드래그·undo/redo·저장·재열기와
 Cmd+Q의 저장·취소와 창 닫기의 변경 버리기를 확인했습니다. 상세 근거는 [검증 기록](docs/verification.md)에 있습니다.
 GUI에 프로젝트 생성·열기, PNG 가져오기와 장면 배치, 개체 선택·속성·드래그·undo/redo와 저장·재열기를 연결했습니다.
-Windows의 실제 GUI 실행과 DPI별 화면은 아직 확인하지 않았습니다.
-CLI는 설정·표시 영역과 저장된 프로젝트/장면을 읽기 전용으로 조회합니다.
-문서 편집 명령·실행 중 GUI 연결·MCP 서버는 아직 구현 전입니다.
+Windows 실기기와 여러 DPI에서의 검증은 아직 확인하지 않았습니다. 두 OS의 CI native 교차 검사는 검증 기록을 참고하세요.
+CLI는 설정·표시 영역·저장된 프로젝트/장면과 실행 중 GUI 세션을 조회합니다.
+공통 편집·이력·저장 요청과 공식 SDK MCP stdio 어댑터를 연결했습니다.
+M2의 소스 구현·실제 TCP·native GUI·MCP 교차 검증 상태는 검증 기록에서 구분합니다.
 
 예: `python3 scripts/dev.py scene inspect "내 프로젝트/project.json"`.
 새 조회 응답은 `protocol_version: 1`, `source: "disk"`, `status: "ok"`와 `data`를 포함합니다.

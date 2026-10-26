@@ -30,7 +30,6 @@ jobs:
         with:
           python-version: '3.14'
       - name: Prepare pinned Rust toolchain and dependencies
-        id: prepare
         run: python scripts/dev.py setup
       - name: Check tools
         run: python scripts/dev.py doctor
@@ -38,8 +37,8 @@ jobs:
         run: python scripts/dev.py check
       - name: Check lockfile remains unchanged
         run: git diff --exit-code -- Cargo.lock
-      - name: Check a native window with an external CLI process
-        run: python scripts/dev.py native-smoke
+      - name: Check a native window with external CLI and MCP processes
+        run: python scripts/dev.py native-mcp-smoke
       - name: Preserve native session evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -49,30 +48,6 @@ jobs:
             artifacts/native-session/frame-*.png
             artifacts/native-session/native-summary.json
             artifacts/native-session/native-host.log
+            artifacts/native-session/mcp-host.log
           if-no-files-found: ignore
           retention-days: 7
-      # SDK 초기 의존성은 이 정상 Cargo 해석으로 확보한다. lock 반영 뒤 제거한다.
-      - name: Package public registry for SDK dependency bootstrap
-        if: always() && steps.prepare.outcome == 'success' && matrix.os == 'macos-15'
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import tarfile
-          root = Path('.tools/cargo/registry')
-          with tarfile.open('.tools/public-registry.tar.gz', 'w:gz') as archive:
-              for part in ['cache', 'index', 'src']:
-                  for path in (root / part).rglob('*'):
-                      if path.is_file() and not path.is_symlink():
-                          archive.add(path, arcname=Path('registry') / path.relative_to(root), recursive=False)
-          PY
-      - name: Preserve SDK dependency bootstrap
-        if: always() && steps.prepare.outcome == 'success' && matrix.os == 'macos-15'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sdk-public-registry-bootstrap
-          path: |
-            Cargo.lock
-            .tools/public-registry.tar.gz
-          if-no-files-found: error
-          retention-days: 1

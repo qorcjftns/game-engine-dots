@@ -56,9 +56,11 @@ struct NativeSmoke {
 }
 
 impl NativeSmoke {
-    fn observe(&mut self, id: u64) {
+    fn observe(&mut self, id: u64, ctx: &egui::Context) {
         let snapshot = self.editor.publish_live(false).expect("live snapshot");
-        let value = serde_json::json!({"id": id, "frames": self.frames, "snapshot": snapshot});
+        let minimized = ctx.input(|input| input.viewport().minimized);
+        let value = serde_json::json!({"id": id, "frames": self.frames,
+                                      "minimized": minimized, "snapshot": snapshot});
         fs::write(
             self.directory.join("host-observation.json"),
             serde_json::to_vec(&value).unwrap(),
@@ -81,6 +83,8 @@ impl NativeSmoke {
             "observe" => {}
             "undo" => self.editor.process_action(ctx, EditorAction::Undo),
             "redo" => self.editor.process_action(ctx, EditorAction::Redo),
+            "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+            "restore" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false)),
             "save_reopen" => {
                 self.editor.process_action(ctx, EditorAction::Save);
                 assert!(self.editor.workspace.error.is_none());
@@ -120,13 +124,18 @@ impl NativeSmoke {
             _ => panic!("Unknown test-only host command"),
         }
         self.last_command = id;
-        self.observe(id);
+        self.observe(id, ctx);
     }
 }
 
 impl App for NativeSmoke {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.editor.logic(ctx, frame);
+        if self.frames >= 3 {
+            // 최소화 중에는 ui가 멈출 수 있어 동일 logic 경로에서 관측·복원을 처리한다.
+            self.commands(ctx);
+            self.observe(self.last_command, ctx);
+        }
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.editor.ui(ui, frame);
@@ -134,7 +143,7 @@ impl App for NativeSmoke {
         let ctx = ui.ctx().clone();
         ctx.request_repaint_after(Duration::from_millis(20));
         if self.frames == 3 {
-            self.observe(0);
+            self.observe(0, &ctx);
         }
         self.commands(&ctx);
     }
