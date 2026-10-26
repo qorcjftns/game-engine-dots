@@ -17,7 +17,7 @@ const PNG: &[u8] = &[
     29, 253, 40, 160, 35, 56, 112, 14, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
 ];
 
-fn fixture() -> (tempfile::TempDir, EditorApp, EntityId) {
+pub(crate) fn fixture() -> (tempfile::TempDir, EditorApp, EntityId) {
     let directory = tempfile::tempdir().unwrap();
     let image = directory.path().join("source.png");
     fs::write(&image, PNG).unwrap();

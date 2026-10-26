@@ -142,18 +142,23 @@ def main():
     parser.add_argument(
         "command",
         choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport",
-                 "project", "scene", "build"],
+                 "project", "scene", "session", "build"],
     )
-    parser.add_argument("arguments", nargs="*")
+    # 하위 CLI의 --connection-file 같은 옵션을 이 파서가 가로채지 않는다.
+    parser.add_argument("arguments", nargs=argparse.REMAINDER)
     arguments = parser.parse_args()
-    if arguments.command not in ["viewport", "project", "scene"] and arguments.arguments:
-        parser.error("추가 인자는 viewport/project/scene에서만 사용합니다.")
+    if arguments.command not in ["viewport", "project", "scene", "session"] and arguments.arguments:
+        parser.error("추가 인자는 viewport/project/scene/session에서만 사용합니다.")
     if arguments.command == "viewport" and len(arguments.arguments) != 2:
         parser.error("사용법: viewport WIDTH HEIGHT")
     if arguments.command in ["project", "scene"] and (
         len(arguments.arguments) != 2 or arguments.arguments[0] != "inspect"
     ):
         parser.error(f"사용법: {arguments.command} inspect FILE")
+    if arguments.command == "session" and (
+        len(arguments.arguments) != 3 or arguments.arguments[:2] != ["inspect", "--connection-file"]
+    ):
+        parser.error("사용법: session inspect --connection-file FILE")
 
     if arguments.command == "setup":
         setup()
@@ -174,7 +179,7 @@ def main():
         cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":
         cargo("run", "--locked", "-p", "engine-desktop")
-    elif arguments.command in ["info", "viewport", "project", "scene"]:
+    elif arguments.command in ["info", "viewport", "project", "scene", "session"]:
         cargo(
             "run", "--locked", "--quiet", "-p", "engine-cli", "--",
             arguments.command, *arguments.arguments,

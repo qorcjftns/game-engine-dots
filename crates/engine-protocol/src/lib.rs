@@ -2,6 +2,7 @@
 
 use engine_document::{DocumentError, PngAsset, ProjectDocument, Scene};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 프로젝트 파일의 schema_version과 별개인 도구 응답 계약 버전입니다.
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -10,6 +11,7 @@ pub const PROTOCOL_VERSION: u32 = 1;
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     Disk,
+    Live,
 }
 
 /// tagged enum으로 성공 응답에 오류가, 오류 응답에 data가 섞이지 않게 합니다.
@@ -48,7 +50,7 @@ impl<T> ApiResponse<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectInspection {
-    /// 조회한 파일의 canonical 경로입니다. 저장 전 GUI 문서의 경로를 뜻하지 않습니다.
+    /// 해당 프로젝트 파일의 canonical 경로입니다. live 문서는 저장 전 변경도 포함할 수 있습니다.
     pub project_file: String,
     pub document: ProjectDocument,
 }
@@ -64,6 +66,19 @@ pub struct SceneInspection {
     pub assets: Vec<PngAsset>,
 }
 
+/// 확정된 문서만 공유하며 입력 중인 문자열과 드래그 미리보기는 포함하지 않습니다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveInspection {
+    pub session_id: String,
+    pub revision: u64,
+    pub busy: bool,
+    pub is_dirty: bool,
+    pub can_undo: bool,
+    pub can_redo: bool,
+    /// 상태만 바뀔 때 문서 복사를 피하는 불변 공유입니다. JSON에서는 일반 객체입니다.
+    pub project: Option<Arc<ProjectInspection>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
@@ -72,6 +87,14 @@ pub enum ErrorCode {
     ProjectAccessDenied,
     ProjectIo,
     InvalidProject,
+    ControlIo,
+    InvalidConnectionFile,
+    InvalidRequest,
+    Unauthorized,
+    UnsupportedProtocol,
+    RequestTooLarge,
+    ResponseTooLarge,
+    ServerBusy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,6 +111,14 @@ impl ApiError {
         }
     }
 }
+
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ApiError {}
 
 impl From<DocumentError> for ApiError {
     fn from(error: DocumentError) -> Self {

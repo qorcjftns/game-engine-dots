@@ -189,3 +189,45 @@ live 조회·편집, 세션 revision/busy/중복 요청 처리와 MCP 연결은 
 cp1252로 출력하면서 실패했습니다. 별도 Python 프로세스에도 stdout/stderr UTF-8을 명시했고,
 macOS에서 `PYTHONIOENCODING=cp1252 python3 scripts/smoke_readonly.py`로 10건과 출력 성공을 확인했습니다.
 수정된 commit의 Windows 결과는 후속 CI에서 확인합니다.
+
+PR1 수정 `3ec5b24`의 [자동 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40205152906)는
+macOS와 Windows 모두 통과했습니다. 읽기 CLI의 실제 Windows 프로세스 검사와 한글 출력도 포함합니다.
+
+## M2 PR2: opt-in GUI live 조회
+
+에디터를 `--agent-control --connection-file FILE`로 실행하면 loopback 조회 통로를 엽니다.
+`session inspect --connection-file FILE`은 디스크 대신 GUI가 게시한 확정 문서·session ID·revision·busy·dirty·이력 상태를 읽습니다.
+미확정 이름 draft·드래그 프리뷰는 문서에 포함하지 않으며 재열기는 새 session ID를 사용합니다.
+기본 실행은 통로를 열지 않고 프로젝트 안의 연결 파일과 기존 파일 덮어쓰기를 거부합니다.
+
+macOS ARM64 로컬에서는 loopback bind와 connect가 모두 sandbox의 `EPERM`으로 차단됐습니다.
+검사를 조용히 생략하지 않고 `cargo test --locked --workspace -- --skip tcp_`로 부분 범위를 명시했습니다.
+이 결과는 non-TCP 테스트 50개와 doctest 1개 통과입니다. workspace rustfmt·Clippy(all targets, 경고 오류 처리),
+locked build, 기존 CLI 계약 5건·디스크 읽기 CLI 10건도 통과했습니다.
+개발 스크립트의 `session inspect --connection-file` 인자 전달과 없는 연결 파일의 구조화된 오류도 확인했습니다.
+
+실제 TCP 회귀 7개는 로컬 통과로 세지 않았습니다. 기본 `scripts/dev.py check`에는 제외 옵션이 없으므로
+두 OS CI에서 transport·별도 CLI 프로세스·GUI core 게시의 실제 socket 검사를 필수로 실행합니다.
+인증/크기/잘못된 요청·전체 frame 기한·느린 전송·bounded 종료·연결 파일 정리/외부 변경 보존,
+저장 파일과 다른 live 상태 조회 및 GUI draft/commit·재열기 연결을 검사합니다.
+원격 검사 결과와 별도 macOS QA 앱의 실제 화면/종료 확인은 확인 후 추가합니다.
+
+live 변경·중복 요청 결과·MCP stdio는 후속 PR 범위입니다.
+
+첫 PR2 CI는 양 OS에서 slow-drip 회귀의 EOF 가정 때문에 실패했습니다.
+서버의 전체 기한이 지난 뒤 테스트가 추가 송신하여 발생한 TCP reset/aborted를 허용하지 않았습니다.
+수정 검사는 실제 닫힘까지의 1.8~4초 상·하한, 추가 송신 없는 frame의 구조화된 기한 오류,
+새 연결 조회 성공과 bounded 종료를 유지합니다. 로컬에서는 socket 실행 대신 테스트 컴파일을 확인하고
+실제 수정 결과는 후속 CI에서 확인합니다.
+
+별도 앱 `dev.engine1.editor.m2review` 버전 1의 macOS/Retina 200% 실제 UI를 확인했습니다.
+opt-in 연결 표시와 연결 파일 존재·0600 권한, native Open으로 프로젝트/PNG 표시,
+한글 이름 입력 후 Cmd+S 저장, 메뉴 undo의 dirty와 redo의 clean 복원을 확인했습니다.
+이름 draft를 입력한 Cmd+Q에서 취소하면 초안이 보존됐고, 다시 ‘변경 버리기’로 종료한 뒤
+앱 inventory에 프로세스가 없고 연결 파일도 삭제된 것을 확인했습니다.
+독립 파일 검사에서 마지막 저장 이름 ‘M2 연결 중 저장 검토’가 유지되고 ‘M2 버릴 초안’은 없었습니다.
+최소화 동작과 실제 GUI↔CLI 교차 조회, Windows native/DPI는 이번 UI 확인에 포함하지 않습니다.
+
+후속 양 OS CI에서 transport 회귀는 통과했으며 GUI core 회귀의 fixture draft 동기화 누락이 확인됐습니다.
+테스트가 직접 명령을 적용한 뒤 실제 GUI commit 경로와 같이 draft를 동기화하도록 보완했습니다.
+미동기화 draft가 Undo 전에 추가 명령으로 확정되는 테스트 설정 문제이며 production 편집 규칙은 바꾸지 않았습니다.

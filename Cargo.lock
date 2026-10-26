@@ -892,11 +892,25 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 name = "engine-cli"
 version = "0.1.0"
 dependencies = [
+ "engine-control",
  "engine-core",
  "engine-document",
  "engine-protocol",
  "serde",
  "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "engine-control"
+version = "0.1.0"
+dependencies = [
+ "engine-document",
+ "engine-protocol",
+ "getrandom 0.4.3",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -927,8 +941,10 @@ name = "engine-editor"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "engine-control",
  "engine-core",
  "engine-document",
+ "engine-protocol",
  "rfd",
  "tempfile",
  "winit",

@@ -80,6 +80,7 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `viewport 1001 701` | 해당 창 크기의 픽셀 표시 영역 계산 |
 | `project inspect FILE` | 저장된 프로젝트 JSON과 문서 모델 검사·조회 |
 | `scene inspect FILE` | 실제 개체 ID·그리기 순서·좌표·자산 참조 조회 |
+| `session inspect --connection-file FILE` | 실행 중인 GUI의 확정 문서·revision·busy 조회 |
 | `build` | 현재 운영체제용 릴리스 실행 파일 생성 |
 
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
@@ -87,6 +88,11 @@ Windows는 `.exe`를 사용합니다. Mac 빌드 명령만으로 Windows 배포 
 Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --workspace` 등도 직접 사용할 수 있습니다.
 `Cargo.lock`은 버전 관리에 포함하며 검사·테스트·실행·릴리스 빌드는 `--locked`를 사용합니다.
 의존성을 바꿀 때는 `setup`으로 lockfile을 갱신하고 변경 내역을 함께 리뷰합니다.
+
+에디터의 live 조회는 기본 비활성입니다. 사용자 전용 프로젝트 외부 경로로
+`target/debug/engine-editor --agent-control --connection-file /사용자/경로/editor-connection.json`을 실행한 뒤
+`target/debug/engine-cli session inspect --connection-file /사용자/경로/editor-connection.json`으로 조회합니다.
+연결 파일은 비밀 token을 포함하므로 공유하거나 저장소에 넣지 않습니다. 상세 제한은 [접근 규약](docs/agent-interface.md)을 따릅니다.
 
 ## 코드 위치
 
