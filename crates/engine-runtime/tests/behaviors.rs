@@ -36,7 +36,7 @@ fn fixture(source: &str) -> (tempfile::TempDir, EditorSession) {
 #[test]
 fn same_snapshot_ticks_inputs_have_same_positions_pixels_and_logs() {
     let (_dir, mut s) =
-        fixture("if right { x += 1; } state += 1; if primary_pressed { log(\"tap\"); }");
+        fixture("if right { move(1,0); } set_state(state+1); if primary_pressed { log(\"tap\"); }");
     let before = s.document().clone();
     let saved = std::fs::read(s.project_file()).unwrap();
     let mut a = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
@@ -62,7 +62,7 @@ fn same_snapshot_ticks_inputs_have_same_positions_pixels_and_logs() {
     s.execute(EditCommand::UpdateBehavior {
         id: before.behaviors[0].id,
         file: "move.rhai".into(),
-        source: "x-=5;".into(),
+        source: "move(-5,0);".into(),
     })
     .unwrap();
     a.step_with_input(1, input).unwrap();
@@ -72,11 +72,11 @@ fn same_snapshot_ticks_inputs_have_same_positions_pixels_and_logs() {
 #[test]
 fn failures_rollback_complete_tick_pause_and_preserve_source() {
     for source in [
-        "x+=1;\nlet z=0;\ny=1/z;",
-        "x+=1;\nloop {}",
-        "x+=1;\nlet s=\"a\"; loop {s+=s;}",
-        "x+=1;\nfn rec(){rec()} rec()",
-        "x+=1;\nread_file(\"secret\");",
+        "move(1,0);\nlet z=0;\nset_position(x,1/z);",
+        "move(1,0);\nloop {}",
+        "move(1,0);\nlet s=\"a\"; loop {s+=s;}",
+        "move(1,0);\nfn rec(){rec()} rec()",
+        "move(1,0);\nread_file(\"secret\");",
     ] {
         let (_dir, s) = fixture(source);
         let before = s.document().clone();
@@ -109,7 +109,7 @@ fn syntax_errors_and_disabled_collections_are_not_executed() {
 }
 #[test]
 fn later_binding_failure_rolls_back_prior_binding_state_and_logs() {
-    let (_dir, mut s) = fixture("x+=2; state+=1; log(\"must rollback\");");
+    let (_dir, mut s) = fixture("move(2,0); set_state(state+1); log(\"must rollback\");");
     let asset_id = s.document().assets[0].id;
     let id = s
         .execute(EditCommand::AddSprite {
@@ -140,4 +140,49 @@ fn later_binding_failure_rolls_back_prior_binding_state_and_logs() {
     assert_eq!(run.world.document(), &before);
     assert_eq!(run.status().entities[0].state, 0);
     assert!(run.status().logs.is_empty());
+}
+
+#[test]
+fn unsafe_native_string_functions_are_not_registered() {
+    for source in [
+        "let text=\"a\"; pad(text,2,\"\");",
+        "repeat(\"a\",9223372036854775807);",
+    ] {
+        let (_dir, s) = fixture(source);
+        let mut run = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
+        run.pause(true);
+        assert!(run.step(1).is_err());
+        assert!(
+            run.status()
+                .error
+                .as_ref()
+                .unwrap()
+                .message
+                .contains("not found")
+        );
+    }
+}
+
+#[test]
+fn typed_output_errors_keep_actual_source_lines_and_calls_accumulate() {
+    for source in [
+        "// header\nset_state(state+1);\nx = true;",
+        "// header\nset_state(state+1);\nset_position(true,0);",
+        "// header\nset_state(state+1);\nset_position(2147483648,0);",
+    ] {
+        let (_dir, s) = fixture(source);
+        let mut run = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
+        run.pause(true);
+        assert!(run.step(1).is_err());
+        assert_eq!(run.status().error.as_ref().unwrap().line, 3);
+        assert_eq!(run.status().entities[0].state, 0);
+    }
+    let (_dir, s) = fixture(
+        "move(2,1); move(3,2); set_position(10,20); move(-1,1); set_state(2); set_state(state+1);",
+    );
+    let mut run = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
+    run.pause(true);
+    run.step(1).unwrap();
+    assert_eq!(run.status().entities[0].position, Position { x: 9, y: 21 });
+    assert_eq!(run.status().entities[0].state, 1);
 }

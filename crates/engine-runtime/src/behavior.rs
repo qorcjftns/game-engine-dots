@@ -60,8 +60,20 @@ fn diagnostic(
         message: bounded_text(&message),
     }
 }
-fn engine(counter: Arc<AtomicU64>, logs: Arc<Mutex<Vec<(usize, String)>>>) -> Engine {
-    let mut engine = Engine::new();
+#[derive(Default, Clone, Copy)]
+struct Staged {
+    position: Position,
+    state: i64,
+}
+fn position_error(ctx: &NativeCallContext) -> Box<EvalAltResult> {
+    EvalAltResult::ErrorRuntime("position must fit i32".into(), ctx.call_position()).into()
+}
+fn engine(
+    counter: Arc<AtomicU64>,
+    logs: Arc<Mutex<Vec<(usize, String)>>>,
+    staged: Arc<Mutex<Staged>>,
+) -> Engine {
+    let mut engine = Engine::new_raw();
     engine
         .set_max_operations(2000)
         .set_max_call_levels(8)
@@ -93,11 +105,41 @@ fn engine(counter: Arc<AtomicU64>, logs: Arc<Mutex<Vec<(usize, String)>>>) -> En
             Ok(())
         },
     );
+    let target = Arc::clone(&staged);
+    engine.register_fn(
+        "move",
+        move |ctx: NativeCallContext, dx: i64, dy: i64| -> Result<(), Box<EvalAltResult>> {
+            let mut target = target.lock().expect("staged mutex");
+            let x = i64::from(target.position.x)
+                .checked_add(dx)
+                .and_then(|x| i32::try_from(x).ok())
+                .ok_or_else(|| position_error(&ctx))?;
+            let y = i64::from(target.position.y)
+                .checked_add(dy)
+                .and_then(|y| i32::try_from(y).ok())
+                .ok_or_else(|| position_error(&ctx))?;
+            target.position = Position { x, y };
+            Ok(())
+        },
+    );
+    let target = Arc::clone(&staged);
+    engine.register_fn(
+        "set_position",
+        move |ctx: NativeCallContext, x: i64, y: i64| -> Result<(), Box<EvalAltResult>> {
+            let x = i32::try_from(x).map_err(|_| position_error(&ctx))?;
+            let y = i32::try_from(y).map_err(|_| position_error(&ctx))?;
+            target.lock().expect("staged mutex").position = Position { x, y };
+            Ok(())
+        },
+    );
+    engine.register_fn("set_state", move |value: i64| {
+        staged.lock().expect("staged mutex").state = value;
+    });
     engine
 }
 /// 문법 검사는 소스를 실행하지 않는다. runtime 이름/자료형 오류는 Play에서 진단한다.
 pub fn validate_behaviors(document: &ProjectDocument) -> Vec<BehaviorDiagnostic> {
-    let engine = engine(Default::default(), Default::default());
+    let engine = engine(Default::default(), Default::default(), Default::default());
     document
         .behaviors
         .iter()
@@ -120,12 +162,14 @@ pub(crate) struct Behaviors {
     bindings: Vec<Binding>,
     counter: Arc<AtomicU64>,
     logs: Arc<Mutex<Vec<(usize, String)>>>,
+    staged: Arc<Mutex<Staged>>,
 }
 impl Behaviors {
     pub fn compile(document: &ProjectDocument) -> Result<Self, BehaviorDiagnostic> {
         let counter = Arc::default();
         let logs = Arc::default();
-        let engine = engine(Arc::clone(&counter), Arc::clone(&logs));
+        let staged = Arc::default();
+        let engine = engine(Arc::clone(&counter), Arc::clone(&logs), Arc::clone(&staged));
         let mut bindings = Vec::new();
         for (entity, item) in document.scene.entities.iter().enumerate() {
             let Some(id) = item.behavior_id else {
@@ -157,6 +201,7 @@ impl Behaviors {
             bindings,
             counter,
             logs,
+            staged,
         })
     }
     pub fn has_bindings(&self) -> bool {
@@ -187,9 +232,9 @@ impl Behaviors {
             let entity = &document.scene.entities[binding.entity];
             let mut scope = Scope::new();
             scope
-                .push("x", i64::from(entity.position.x))
-                .push("y", i64::from(entity.position.y))
-                .push("state", binding.state);
+                .push_constant("x", i64::from(entity.position.x))
+                .push_constant("y", i64::from(entity.position.y))
+                .push_constant("state", binding.state);
             scope.push_constant("tick", i64::try_from(tick).unwrap_or(i64::MAX));
             for (name, value) in [
                 ("left", input.left),
@@ -206,6 +251,10 @@ impl Behaviors {
                 .push_constant("pointer_x", i64::from(input.pointer.map_or(-1, |p| p[0])))
                 .push_constant("pointer_y", i64::from(input.pointer.map_or(-1, |p| p[1])));
             self.logs.lock().expect("log mutex").clear();
+            *self.staged.lock().expect("staged mutex") = Staged {
+                position: entity.position,
+                state: binding.state,
+            };
             self.engine
                 .run_ast_with_scope(&mut scope, &binding.ast)
                 .map_err(|error| {
@@ -217,19 +266,8 @@ impl Behaviors {
                         error.to_string(),
                     )
                 })?;
-            let result = scope
-                .get_value::<i64>("x")
-                .and_then(|x| i32::try_from(x).ok())
-                .zip(
-                    scope
-                        .get_value::<i64>("y")
-                        .and_then(|y| i32::try_from(y).ok()),
-                )
-                .zip(scope.get_value::<i64>("state"));
-            let Some(((x, y), state)) = result else {
-                return Err(diagnostic(&binding.resource, Some(entity.id), tick, rhai::Position::new(1,1), "x/y는 i32 범위의 정수, state는 i64 정수여야 합니다. 최종 출력 검증 실패입니다.".into()));
-            };
-            updates.push((Position { x, y }, state));
+            let staged = *self.staged.lock().expect("staged mutex");
+            updates.push((staged.position, staged.state));
             for (line, message) in self.logs.lock().expect("log mutex").drain(..) {
                 if all_logs.len() >= MAX_LOGS {
                     return Err(diagnostic(

@@ -65,27 +65,32 @@ Rhai 1.27.0을 고정합니다. 비교 실험에서 Wasm은 별도 컴파일/ABI
 Rhai 1.23.4에서는 map 인덱스 대입의 크기 제한과 산술 오류 위치 문제가 관찰됐습니다.
 1.27.0의 실제 실험에서 나눗셈/overflow/중첩 함수 소스 위치, 연산/재귀/문자열 제한을 확인했습니다.
 컬렉션은 M4 API에 필요 없어 `no_object`·`no_index`로 제거했습니다. module/time/float도 제거하며 `eval`을 금지합니다.
-파일·네트워크·프로세스 API는 등록하지 않습니다. 이것은 엔진이 제공하는 제한 실행 경계이며 OS process sandbox가 아닙니다.
+리뷰에서 표준 패키지 `pad(text, 2, "")`가 연산 budget 밖 native 무한루프를 만들 수 있음을 확인했습니다.
+따라서 `Engine::new_raw()`에 패키지를 하나도 등록하지 않습니다. 언어의 기본 정수/비교 연산과 명시한 host API만 허용합니다.
+`pad`/`repeat` 등 표준 라이브러리 함수는 unknown function 오류입니다. 파일·네트워크·프로세스 API도 등록하지 않습니다. 이것은 엔진이 제공하는 제한 실행 경계이며 OS process sandbox가 아닙니다.
 
-매 60Hz tick에 연결된 소스를 장면 순서대로 실행합니다. 새 scope의 `x`, `y`는 개체의 정수 위치,
-`state`는 실행 중만 유지하는 i64 한 개(초기 0)입니다. 나머지 지역변수는 tick 뒤 사라집니다.
+매 60Hz tick에 연결된 소스를 장면 순서대로 실행합니다. 새 scope의 읽기 전용 `x`, `y`는 tick 시작 시 개체의 정수 위치,
+`state`는 tick 시작 시 읽기 전용 i64 한 개(초기 0)입니다. 나머지 지역변수는 tick 뒤 사라집니다.
 읽기 전용 `tick`(1부터), `left/right/up/down/primary`, `primary_pressed/primary_released`,
 `pointer_x/pointer_y`(없으면 -1)를 읽을 수 있습니다. 좌표는 논리 픽셀입니다.
 
 ```rhai
-if right { x += 2; }
-if left { x -= 2; }
-if down { y += 2; }
-if up { y -= 2; }
-state += 1;
+if right { move(2, 0); }
+if left { move(-2, 0); }
+if down { move(0, 2); }
+if up { move(0, -2); }
+set_state(state + 1);
 if primary_pressed { log("primary pressed"); }
 ```
 
+`move(dx,dy)`는 임시 위치에 누적하고 `set_position(x,y)`는 임시 위치를 교체합니다.
+`set_state(value)`는 임시 상태를 교체합니다. 호출 순서대로 반영하지만 읽기 상수는 같은 tick 안에서 바뀌지 않습니다.
+세 함수는 정수만 받고 좌표는 i32 범위를 검사해 실제 호출 위치에서 오류를 반환합니다.
 `log(string)`은 file/line/entity/tick을 남깁니다. print/debug는 외부 출력에 쓰지 않습니다.
 모든 연결의 결과와 로그를 임시로 모아 성공할 때만 전체 tick을 반영합니다.
 문법 오류는 Play 시작을 거부하고 기존 편집 문서를 보존합니다. 실행 오류는 해당 tick의 모든 위치/state/log를 취소하고 pause합니다.
 이미 완료된 이전 tick은 유지합니다. `runtime.error`의 file/line/column/entity/tick/message로 진단하고 Stop→편집→Play로 재시작합니다.
-중첩 함수 오류는 내부 오류의 소스 위치를 사용합니다. 최종 x/y/state 출력 타입·범위 검증 오류는 파일 1행의 출력 계약 오류로 표시합니다.
+중첩 함수 오류는 내부 오류의 소스 위치를 사용합니다. x/y/state 직접 대입은 상수 변경 오류이고 타입/범위 오류도 실제 호출 줄을 표시합니다.
 실행 결과는 원본 문서·dirty·이력·파일에 반영하지 않습니다. editor와 player는 같은 실행기를 사용합니다.
 
 상한은 소스 하나 8 KiB, 리소스32개(소스 합계256 KiB), 연결64개, 컴파일 AST64개입니다.
