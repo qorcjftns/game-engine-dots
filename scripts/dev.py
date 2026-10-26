@@ -142,7 +142,7 @@ def main():
     parser.add_argument(
         "command",
         choices=["setup", "doctor", "fmt", "check", "test", "editor", "run", "info", "viewport",
-                 "project", "scene", "session", "build"],
+                 "project", "scene", "session", "native-smoke", "build"],
     )
     # 하위 CLI의 --connection-file 같은 옵션을 이 파서가 가로채지 않는다.
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
@@ -155,10 +155,8 @@ def main():
         len(arguments.arguments) != 2 or arguments.arguments[0] != "inspect"
     ):
         parser.error(f"사용법: {arguments.command} inspect FILE")
-    if arguments.command == "session" and (
-        len(arguments.arguments) != 3 or arguments.arguments[:2] != ["inspect", "--connection-file"]
-    ):
-        parser.error("사용법: session inspect --connection-file FILE")
+    if arguments.command == "session" and not arguments.arguments:
+        parser.error("사용법: session inspect/mutate/result --connection-file FILE ...")
 
     if arguments.command == "setup":
         setup()
@@ -175,6 +173,9 @@ def main():
         run([sys.executable, str(ROOT / "scripts" / "smoke_readonly.py")])
     elif arguments.command == "test":
         cargo("test", "--locked", "--workspace")
+    elif arguments.command == "native-smoke":
+        cargo("build", "--locked", "-p", "engine-editor", "--example", "native_session_smoke")
+        run([sys.executable, str(ROOT / "scripts" / "native_session_smoke.py")])
     elif arguments.command == "editor":
         cargo("run", "--locked", "-p", "engine-editor")
     elif arguments.command == "run":

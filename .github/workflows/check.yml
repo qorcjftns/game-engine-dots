@@ -37,3 +37,16 @@ jobs:
         run: python scripts/dev.py check
       - name: Check lockfile remains unchanged
         run: git diff --exit-code -- Cargo.lock
+      - name: Check a native window with an external CLI process
+        run: python scripts/dev.py native-smoke
+      - name: Preserve native session evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-session-${{ matrix.os }}
+          path: |
+            artifacts/native-session/frame-*.png
+            artifacts/native-session/native-summary.json
+            artifacts/native-session/native-host.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -60,6 +60,12 @@ pub(crate) struct InspectRequest {
     pub protocol_version: u32,
     pub token: String,
     pub operation: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mutation: Option<engine_protocol::MutationRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 // 작은 read timeout을 반복하되 전체 frame 기한은 연장하지 않습니다.
@@ -159,9 +165,41 @@ fn io_error() -> crate::ControlError {
     )
 }
 
-/// 연결 파일은 읽기만 하며 응답도 마지막 게시 snapshot만 받습니다.
+/// 연결 파일은 읽기만 하며 마지막 게시 snapshot을 받습니다.
 pub fn inspect_connection_file(path: impl AsRef<Path>) -> Result<LiveInspection> {
-    let connection = ConnectionFile::read(path.as_ref())?;
+    exchange(path.as_ref(), "inspect", None, None, None)
+}
+
+/// 수신 receipt를 반환합니다. queued/running은 적용 성공을 뜻하지 않습니다.
+pub fn mutate_connection_file(
+    path: impl AsRef<Path>,
+    request: engine_protocol::MutationRequest,
+) -> Result<engine_protocol::MutationReceipt> {
+    exchange(path.as_ref(), "mutate", Some(request), None, None)
+}
+
+pub fn lookup_connection_file(
+    path: impl AsRef<Path>,
+    session_id: &str,
+    request_id: &str,
+) -> Result<engine_protocol::MutationReceipt> {
+    exchange(
+        path.as_ref(),
+        "result",
+        None,
+        Some(session_id.into()),
+        Some(request_id.into()),
+    )
+}
+
+fn exchange<T: serde::de::DeserializeOwned>(
+    path: &Path,
+    operation: &str,
+    mutation: Option<engine_protocol::MutationRequest>,
+    session_id: Option<String>,
+    request_id: Option<String>,
+) -> Result<T> {
+    let connection = ConnectionFile::read(path)?;
     let stream =
         TcpStream::connect_timeout(&connection.address()?, SOCKET_TIMEOUT).map_err(|_| {
             failure(
@@ -169,24 +207,28 @@ pub fn inspect_connection_file(path: impl AsRef<Path>) -> Result<LiveInspection>
                 "실행 중인 에디터 세션에 연결하지 못했습니다.",
             )
         })?;
-    stream
-        .set_read_timeout(Some(SOCKET_TIMEOUT))
-        .map_err(|_| invalid_connection())?;
-    stream
-        .set_write_timeout(Some(SOCKET_TIMEOUT))
-        .map_err(|_| invalid_connection())?;
     write_frame(
         &stream,
         &InspectRequest {
             protocol_version: PROTOCOL_VERSION,
             token: connection.token,
-            operation: "inspect".into(),
+            operation: operation.into(),
+            mutation,
+            session_id,
+            request_id,
         },
         MAX_REQUEST_BYTES,
         None,
-    )?;
+    )
+    .map_err(|error| {
+        if error.code == ErrorCode::ResponseTooLarge {
+            failure(ErrorCode::RequestTooLarge, "요청 크기 제한을 초과했습니다.")
+        } else {
+            error
+        }
+    })?;
     let bytes = read_frame(&stream, MAX_RESPONSE_BYTES, None)?;
-    let response: ApiResponse<LiveInspection> = serde_json::from_slice(&bytes).map_err(|_| {
+    let response: ApiResponse<T> = serde_json::from_slice(&bytes).map_err(|_| {
         failure(
             ErrorCode::InvalidRequest,
             "세션 응답 JSON이 올바르지 않습니다.",

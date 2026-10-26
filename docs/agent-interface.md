@@ -2,7 +2,7 @@
 
 전체 v1 범위·순서·인수 조건은 [개발계획](roadmap.md)을 기준으로 합니다.
 현재 CLI는 info·viewport, 저장된 프로젝트/장면 조회와 opt-in GUI live 조회를 지원합니다.
-live 변경·MCP와 이후 접점은 아직 계획입니다.
+같은 GUI 세션의 기존 스프라이트 변경·이력·저장도 요청할 수 있습니다. MCP는 다음 단계입니다.
 
 ```sh
 target/debug/engine-cli info
@@ -44,8 +44,50 @@ JSONL 한 요청/응답 뒤 연결을 닫습니다. 요청 8 KiB·응답 4 MiB, 
 작업 스레드 4개·대기 연결 8개로 제한합니다. 초과 요청은 `request_too_large`, 큰 응답은
 `response_too_large`, 포화는 `server_busy`입니다. 연결/기한 실패는 `control_io`, 잘못된 연결 파일은
 `invalid_connection_file`, 인증은 `unauthorized`, 메시지는 `invalid_request`, 버전은 `unsupported_protocol`입니다.
-이 단계는 조회만 지원하며 편집 요청을 받지 않습니다. 전체 TCP 회귀는 두 OS CI에서 필수 실행하고,
+에디터는 명시적 opt-in 실행에서 조회와 다음 변경 요청을 지원합니다. 전체 TCP 회귀는 두 OS CI에서 필수 실행하고,
 소켓이 제한된 로컬 부분 검사는 실제 TCP·native GUI 교차 확인과 구분해 기록합니다.
+
+## 현재 live 변경과 결과 조회
+
+먼저 inspect로 session ID·revision과 기존 asset/entity ID를 확인합니다. 요청 파일 예시:
+
+```json
+{
+  "expected_session_id": "inspect에서 받은 session_id",
+  "expected_revision": 3,
+  "request_id": "move-hero-001",
+  "timeout_ms": 5000,
+  "command": {"type": "move_entity", "id": 73, "position": {"x": 60, "y": 38}}
+}
+```
+
+```sh
+engine-cli session mutate --connection-file /사용자/외부경로/control.json --request-file move.json
+engine-cli session result --connection-file /사용자/외부경로/control.json --session-id SESSION_ID --request-id move-hero-001
+```
+
+명령은 `add_sprite`(기존 asset_id·name·position), `remove_entity`(id), `rename_entity`(id·name),
+`move_entity`(id·position), `undo`, `redo`, `save`입니다. 새 프로젝트 열기/생성·PNG 가져오기·임의 파일 쓰기는 지원하지 않습니다.
+변경 파일은 읽기만 하며 실제 편집/저장은 GUI가 소유한 EditorSession에서 직렬 실행합니다.
+요청 ID는 영숫자/-/_ 1~128자, timeout_ms는 1~10000입니다. 기한은 **서버 접수 뒤 대기 시간**이며
+네트워크 전체 왕복 시간이나 이미 시작한 저장의 강제 취소를 보장하지 않습니다.
+
+성공 응답 `data`는 session_id·request_id·state를 포함하는 receipt입니다.
+`queued`/`running`은 적용 성공이 아닙니다. `applied`는 revision·is_dirty·effect.entity_id(추가 외에는 null),
+`rejected`는 revision·error, `expired_before_apply`는 미적용 만료입니다.
+stdout의 `status: "ok"`/종료 0은 receipt를 받았다는 뜻이며 rejected도 포함할 수 있습니다.
+입력/전송/admission 오류는 기존처럼 `status: "error"`/종료 2입니다. 적용 여부는 반드시 state로 판정합니다.
+
+대기열 32개, 원장 1024개/세션으로 제한합니다. 원장은 항목을 퇴출하지 않고 꽉 차면 새 ID를 `ledger_full`로 거부합니다.
+기존 ID의 결과 조회와 동일 요청 재전송은 계속 가능하며 다른 payload 재사용은 `request_conflict`입니다.
+정상 접수한 요청의 busy/stale/명령·저장 실패/만료도 원장에 남고 문서 전체는 receipt에 복사하지 않습니다.
+인증·잘못된 형식·다른 세션·queue_full·ledger_full 등 접수 전 오류는 원장에 등록하지 않습니다.
+GUI는 실행 직전에 session/revision/busy/deadline을 다시 확인합니다. 사람 draft를 확정하거나 취소하지 않습니다.
+저장 실패는 문서·이력·기존 파일을 보존하며 undo/redo로 revision을 뒤로 돌리지 않습니다.
+
+응답을 잃었으면 같은 session/request ID로 result를 조회하거나 **동일 payload**만 재전송합니다.
+현재 세션의 `unknown_request`도 미적용 증거로 단정하지 않습니다. 새 ID로 blind retry하지 않습니다.
+프로젝트 교체·재시작은 새 session ID와 원장을 만들고 이전 queue를 버립니다. 이전 결과를 영속 보관하지 않습니다.
 
 ## M2: 같은 편집 세션 사용
 

@@ -95,6 +95,17 @@ pub enum ErrorCode {
     RequestTooLarge,
     ResponseTooLarge,
     ServerBusy,
+    EditorBusy,
+    SessionMismatch,
+    RevisionMismatch,
+    RequestConflict,
+    LedgerFull,
+    QueueFull,
+    DeadlineExceeded,
+    UnknownRequest,
+    MutationsDisabled,
+    NoProject,
+    CommandFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -175,4 +186,70 @@ mod tests {
             assert_eq!(error.code, expected);
         }
     }
+}
+
+/// GUI와 CLI/MCP가 공유하는 기존 스프라이트 편집 명령입니다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MutationCommand {
+    AddSprite {
+        asset_id: engine_document::AssetId,
+        name: String,
+        position: engine_document::Position,
+    },
+    RemoveEntity {
+        id: engine_document::EntityId,
+    },
+    RenameEntity {
+        id: engine_document::EntityId,
+        name: String,
+    },
+    MoveEntity {
+        id: engine_document::EntityId,
+        position: engine_document::Position,
+    },
+    Undo,
+    Redo,
+    Save,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MutationRequest {
+    pub expected_session_id: String,
+    pub expected_revision: u64,
+    pub request_id: String,
+    /// 서버 수신 시 고정되는 대기 기한입니다. 이미 실행 중인 저장을 취소하지 않습니다.
+    pub timeout_ms: u32,
+    pub command: MutationCommand,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationEffect {
+    pub entity_id: Option<engine_document::EntityId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationReceipt {
+    pub session_id: String,
+    pub request_id: String,
+    #[serde(flatten)]
+    pub state: MutationState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum MutationState {
+    Queued,
+    Running,
+    Applied {
+        revision: u64,
+        is_dirty: bool,
+        effect: MutationEffect,
+    },
+    Rejected {
+        revision: u64,
+        error: ApiError,
+    },
+    ExpiredBeforeApply,
 }

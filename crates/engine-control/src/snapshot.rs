@@ -74,16 +74,21 @@ impl SessionTracker {
 #[derive(Clone)]
 pub struct SnapshotPublisher {
     state: Arc<RwLock<Arc<LiveInspection>>>,
+    pub(crate) mutations: Arc<crate::mutation::MutationHub>,
 }
 
 impl SnapshotPublisher {
     pub(crate) fn new(initial: LiveInspection) -> Self {
         Self {
+            mutations: Arc::new(crate::mutation::MutationHub::new(
+                initial.session_id.clone(),
+            )),
             state: Arc::new(RwLock::new(Arc::new(initial))),
         }
     }
 
     pub fn publish(&self, snapshot: LiveInspection) -> Result<()> {
+        self.mutations.reset_session(&snapshot.session_id)?;
         let mut state = self
             .state
             .write()

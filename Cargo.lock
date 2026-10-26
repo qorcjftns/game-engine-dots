@@ -945,7 +945,9 @@ dependencies = [
  "engine-core",
  "engine-document",
  "engine-protocol",
+ "image 0.25.10",
  "rfd",
+ "serde_json",
  "tempfile",
  "winit",
 ]

@@ -85,6 +85,14 @@ impl QueryServer {
         })
     }
 
+    /// GUI 접합이 준비된 후 한 번만 활성화합니다.
+    pub fn enable_mutations(
+        &self,
+        wakeup: impl Fn() + Send + Sync + 'static,
+    ) -> Result<crate::MutationInbox> {
+        self.publisher.mutations.enable(wakeup)
+    }
+
     pub fn publisher(&self) -> SnapshotPublisher {
         self.publisher.clone()
     }
@@ -172,7 +180,7 @@ fn answer(
     token: &str,
     publisher: &SnapshotPublisher,
     stop: &AtomicBool,
-) -> ApiResponse<Arc<LiveInspection>> {
+) -> ApiResponse<ControlData> {
     let result = (|| {
         let bytes = read_frame(stream, MAX_REQUEST_BYTES, Some(stop))?;
         let request: InspectRequest = serde_json::from_slice(&bytes).map_err(|_| {
@@ -193,13 +201,41 @@ fn answer(
                 "지원하지 않는 요청 버전입니다.",
             ));
         }
-        if request.operation != "inspect" {
-            return Err(failure(
+        let current = publisher.snapshot()?;
+        match request.operation.as_str() {
+            "inspect"
+                if request.mutation.is_none()
+                    && request.session_id.is_none()
+                    && request.request_id.is_none() =>
+            {
+                Ok(ControlData::Snapshot(current))
+            }
+            "mutate" if request.session_id.is_none() && request.request_id.is_none() => {
+                let mutation = request
+                    .mutation
+                    .ok_or_else(|| failure(ErrorCode::InvalidRequest, "mutation이 필요합니다."))?;
+                publisher
+                    .mutations
+                    .submit(mutation, &current)
+                    .map(ControlData::Receipt)
+            }
+            "result" if request.mutation.is_none() => {
+                let session_id = request.session_id.ok_or_else(|| {
+                    failure(ErrorCode::InvalidRequest, "session_id가 필요합니다.")
+                })?;
+                let request_id = request.request_id.ok_or_else(|| {
+                    failure(ErrorCode::InvalidRequest, "request_id가 필요합니다.")
+                })?;
+                publisher
+                    .mutations
+                    .lookup(&session_id, &request_id)
+                    .map(ControlData::Receipt)
+            }
+            _ => Err(failure(
                 ErrorCode::InvalidRequest,
-                "이 단계에서는 inspect 조회만 지원합니다.",
-            ));
+                "지원하지 않는 요청입니다.",
+            )),
         }
-        publisher.snapshot()
     })();
     match result {
         Ok(snapshot) => ApiResponse::success(DataSource::Live, snapshot),
@@ -212,4 +248,11 @@ fn file_error() -> crate::ControlError {
         ErrorCode::InvalidConnectionFile,
         "연결 파일을 새로 만들지 못했습니다. 기존 파일은 덮어쓰지 않습니다.",
     )
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum ControlData {
+    Snapshot(Arc<LiveInspection>),
+    Receipt(engine_protocol::MutationReceipt),
 }

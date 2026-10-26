@@ -231,3 +231,28 @@ opt-in 연결 표시와 연결 파일 존재·0600 권한, native Open으로 프
 후속 양 OS CI에서 transport 회귀는 통과했으며 GUI core 회귀의 fixture draft 동기화 누락이 확인됐습니다.
 테스트가 직접 명령을 적용한 뒤 실제 GUI commit 경로와 같이 draft를 동기화하도록 보완했습니다.
 미동기화 draft가 Undo 전에 추가 명령으로 확정되는 테스트 설정 문제이며 production 편집 규칙은 바꾸지 않았습니다.
+
+## M2 PR3: 같은 세션의 편집·이력·저장
+
+CLI의 `session mutate --connection-file FILE --request-file JSON`과 `session result`를 연결했습니다.
+GUI가 원본 세션을 계속 소유하며 추가/삭제·이름/위치·undo/redo·저장을 같은 명령 경로에서 실행합니다.
+session ID·예상 revision·busy를 수신 시점과 적용 직전에 검사하고 사람의 draft를 강제로 확정하지 않습니다.
+요청 ID별 원장은 같은 요청의 결과를 보존하고 다른 내용의 재사용을 거부합니다.
+대기 기한이 지난 요청은 적용하지 않으며 실행이 시작된 저장은 대기 기한으로 취소하지 않습니다.
+
+macOS ARM64에서 fmt, workspace Clippy(all targets, 경고 오류 처리), locked build,
+기존 CLI 5건·디스크 읽기 CLI 10건을 통과했습니다.
+`cargo test --locked --workspace -- --skip tcp_`는 non-TCP 58개와 doctest 1개가 통과했습니다.
+대기/원장 상한, 중복·다른 내용 충돌·같은 revision 경합·busy 재검사·만료·세션 교체·실패한 저장 보존을 포함합니다.
+실제 TCP 8개는 로컬 sandbox 제한 때문에 이 통과 수에 포함하지 않으며 두 OS CI에서 필수 실행합니다.
+
+추가 CI 명령 `python scripts/dev.py native-smoke`는 테스트 전용 example의 실제 eframe main-thread 창과
+Wgpu renderer를 띄워 별도 CLI 프로세스가 같은 세션을 조회·편집하도록 시도합니다.
+이후 같은 GUI action의 undo/redo·저장/재열기·정상 종료와 descriptor 정리를 확인하도록 작성했습니다.
+30초 watchdog 또는 graphics/session 실패는 실패로 처리하며 skip으로 통과시키지 않습니다.
+실행물과 orchestration은 컴파일/구문 검사 및 읽기 리뷰를 마쳤지만 실제 CI 실행은 아직 확인 전입니다.
+PNG는 renderer의 실제 frame 캡처이며 물리 마우스 입력·OS 전체 화면·DPI 검증과 구분합니다.
+artifact는 frame PNG·비밀값 없는 결과 JSON·host 로그만 포함하고 token 연결 파일·요청 파일은 제외합니다.
+
+native example용 dev-dependency는 이미 잠긴 image 0.25.10과 serde_json을 재사용했습니다.
+MCP stdio와 실제 SDK 연결은 다음 PR 범위입니다.

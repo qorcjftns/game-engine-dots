@@ -81,6 +81,8 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `project inspect FILE` | 저장된 프로젝트 JSON과 문서 모델 검사·조회 |
 | `scene inspect FILE` | 실제 개체 ID·그리기 순서·좌표·자산 참조 조회 |
 | `session inspect --connection-file FILE` | 실행 중인 GUI의 확정 문서·revision·busy 조회 |
+| `session mutate --connection-file FILE --request-file JSON` | 같은 GUI 세션에 기존 편집 명령 접수 |
+| `session result --connection-file FILE --session-id ID --request-id ID` | 접수한 요청의 적용/거부/만료 확인 |
 | `build` | 현재 운영체제용 릴리스 실행 파일 생성 |
 
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
@@ -92,6 +94,7 @@ Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --wo
 에디터의 live 조회는 기본 비활성입니다. 사용자 전용 프로젝트 외부 경로로
 `target/debug/engine-editor --agent-control --connection-file /사용자/경로/editor-connection.json`을 실행한 뒤
 `target/debug/engine-cli session inspect --connection-file /사용자/경로/editor-connection.json`으로 조회합니다.
+변경 접수 응답의 queued/running은 적용 성공이 아니므로 result로 결과를 확인합니다.
 연결 파일은 비밀 token을 포함하므로 공유하거나 저장소에 넣지 않습니다. 상세 제한은 [접근 규약](docs/agent-interface.md)을 따릅니다.
 
 ## 코드 위치
