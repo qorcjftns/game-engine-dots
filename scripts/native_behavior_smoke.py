@@ -32,11 +32,12 @@ def main():
 
     def wait(check):
         while time.monotonic() < deadline:
-            if process.poll() is not None:
-                raise RuntimeError('native editor stopped; see editor.log')
+            # 정상 close는 ACK 게시 직후 종료할 수 있으므로 완료 근거를 먼저 읽는다.
             result = check()
             if result:
                 return result
+            if process.poll() is not None:
+                raise RuntimeError('native editor stopped; see editor.log')
             time.sleep(.03)
         raise TimeoutError('native behavior deadline')
 
