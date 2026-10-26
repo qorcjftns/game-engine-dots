@@ -3,9 +3,24 @@
 use std::{env, process::ExitCode};
 
 use engine_core::{LOGICAL_HEIGHT, LOGICAL_WIDTH, TICKS_PER_SECOND, viewport::Viewport};
+use engine_protocol::{ApiResponse, DataSource};
+
+mod inspect;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
+    if arguments
+        .first()
+        .is_some_and(|command| command == "project" || command == "scene")
+    {
+        return match inspect::run(&arguments) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                print_response(ApiResponse::<()>::failure(DataSource::Disk, error));
+                ExitCode::from(2)
+            }
+        };
+    }
     match run(&arguments) {
         Ok(()) => ExitCode::SUCCESS,
         Err(code) => {
@@ -14,6 +29,14 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+fn print_response<T: serde::Serialize>(response: ApiResponse<T>) {
+    // 응답은 UTF-8 문자열·정수·배열·구조체만 사용합니다.
+    println!(
+        "{}",
+        serde_json::to_string(&response).expect("inspection response is serializable")
+    );
 }
 
 fn run(arguments: &[String]) -> Result<(), &'static str> {

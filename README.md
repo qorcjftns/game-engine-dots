@@ -39,7 +39,8 @@ crates/engine-core/     현재: 화면 배치·시간 계산
 crates/engine-document/ 현재: 프로젝트 문서·PNG 가져오기·편집 명령·저장·undo/redo
 crates/engine-desktop/  현재: Macroquad 출력 검증 데모
 crates/engine-editor/   현재: 프로젝트·PNG 배치·선택·속성·드래그·undo/redo GUI
-crates/engine-cli/      현재: 설정 조회·화면 배치 계산 JSON 명령
+crates/engine-protocol/ 현재: CLI 공통 JSON 응답·문서/장면 조회 자료형
+crates/engine-cli/      현재: 설정·표시 영역·저장된 프로젝트/장면 JSON 조회
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```
@@ -77,6 +78,8 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `run` | 기존 Macroquad 출력 검증 데모 실행 |
 | `info` | 현재 코어의 기본 설정을 JSON으로 출력 |
 | `viewport 1001 701` | 해당 창 크기의 픽셀 표시 영역 계산 |
+| `project inspect FILE` | 저장된 프로젝트 JSON과 문서 모델 검사·조회 |
+| `scene inspect FILE` | 실제 개체 ID·그리기 순서·좌표·자산 참조 조회 |
 | `build` | 현재 운영체제용 릴리스 실행 파일 생성 |
 
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
@@ -92,6 +95,7 @@ crates/engine-core/     창 없이 쓸 수 있는 화면 배치·시간 계산
 crates/engine-document/ GUI에 독립적인 프로젝트 문서·편집 명령·파일 처리
 crates/engine-desktop/  Macroquad를 통한 창·입력·픽셀 화면 데모
 crates/engine-editor/   GUI 편집 화면·입력·파일 대화상자·미저장 확인
+crates/engine-protocol/ GUI에 독립적인 JSON 응답·문서/장면 조회 자료형
 crates/engine-cli/      에이전트용 JSON 명령
 scripts/               두 운영체제에서 공통으로 쓰는 개발 명령
 docs/                  설계, 인터페이스, 검증 기록
@@ -111,7 +115,13 @@ workspace 빌드·CLI 계약 5개를 확인했습니다. 최종 편집 소스의
 Cmd+Q의 저장·취소와 창 닫기의 변경 버리기를 확인했습니다. 상세 근거는 [검증 기록](docs/verification.md)에 있습니다.
 GUI에 프로젝트 생성·열기, PNG 가져오기와 장면 배치, 개체 선택·속성·드래그·undo/redo와 저장·재열기를 연결했습니다.
 Windows의 실제 GUI 실행과 DPI별 화면은 아직 확인하지 않았습니다.
-CLI는 설정·표시 영역 조회만 제공하며 문서 편집 명령과 MCP 서버는 구현 전입니다.
+CLI는 설정·표시 영역과 저장된 프로젝트/장면을 읽기 전용으로 조회합니다.
+문서 편집 명령·실행 중 GUI 연결·MCP 서버는 아직 구현 전입니다.
+
+예: `python3 scripts/dev.py scene inspect "내 프로젝트/project.json"`.
+새 조회 응답은 `protocol_version: 1`, `source: "disk"`, `status: "ok"`와 `data`를 포함합니다.
+실패는 `status: "error"`와 구조화된 `error`를 반환하고 종료 코드 2를 사용합니다.
+프로젝트 파일을 변경하지 않으며 JSON/모델만 검사합니다. PNG 존재·디코딩과 GUI의 미저장 상태는 검사하지 않습니다.
 
 ## 현재 GUI에서 시도할 흐름
 

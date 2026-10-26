@@ -163,4 +163,29 @@ Retina 200% 배율에서 다음 흐름을 확인했습니다.
 
 이 결과는 macOS의 에디터 메뉴·창 닫기·Cmd+Q 경로에 대한 확인입니다.
 Windows 실제 GUI/DPI, macOS Dock Quit와 강제 종료까지 보호했다고 해석하지 않습니다.
-CLI는 info·viewport만 구현돼 있고 문서 편집 명령과 MCP 전송은 아직 구현 전입니다.
+이 M1 검토 시점의 CLI는 info·viewport만 구현돼 있었고 문서 편집 명령과 MCP 전송은 구현 전이었습니다.
+
+## M2 PR1: 공통 응답 계약과 읽기 CLI
+
+`project inspect FILE`과 `scene inspect FILE`은 저장된 JSON과 문서 모델을 검사하고
+실제 개체 ID·이름·좌표·자산 참조를 반환합니다. 응답의 `protocol_version: 1`은
+프로젝트 형식의 `schema_version`과 별개이며 `source: "disk"`로 조회 대상을 구분합니다.
+PNG 파일의 존재/디코딩이나 저장 전 GUI 문서를 검사하는 기능은 아닙니다.
+
+macOS ARM64에서 `CARGO_NET_OFFLINE=true python3 scripts/dev.py check`를 실행했습니다.
+rustfmt, workspace Clippy 경고 없음, 테스트 42개(기존 40개와 공통 응답 계약 2개),
+doctest 1개, 전체 빌드, 기존 CLI 계약 5개와 신규 읽기 CLI 계약 10개가 통과했습니다.
+새 외부 의존성 버전 추가 없이 실제 Cargo 해석으로 workspace lockfile을 갱신했습니다.
+
+신규 검사는 별도 CLI 프로세스로 한글·공백 경로와 따옴표 이름, 실제 ID·음수 좌표·자산 메타데이터,
+잘못된 JSON·미지원 형식 버전·없는 자산 참조·없는 프로젝트·인자 오류를 확인합니다.
+검사 전후 입력 디렉터리의 모든 파일 SHA-256과 파일 목록이 같았습니다.
+Windows의 canonical 경로 표현 차이는 같은 파일인지 비교하도록 처리했으며 실제 Windows 실행 결과는 CI에서 별도로 확인합니다.
+
+이 PR은 GUI 파일을 변경하지 않았으므로 실제 UI 검사를 반복하지 않았습니다.
+live 조회·편집, 세션 revision/busy/중복 요청 처리와 MCP 연결은 후속 PR 범위입니다.
+
+첫 Windows CI는 Rust 검사와 신규 CLI 검증을 마친 뒤 스모크의 한글 완료 메시지를
+cp1252로 출력하면서 실패했습니다. 별도 Python 프로세스에도 stdout/stderr UTF-8을 명시했고,
+macOS에서 `PYTHONIOENCODING=cp1252 python3 scripts/smoke_readonly.py`로 10건과 출력 성공을 확인했습니다.
+수정된 commit의 Windows 결과는 후속 CI에서 확인합니다.

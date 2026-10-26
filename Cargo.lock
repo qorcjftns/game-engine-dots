@@ -893,6 +893,10 @@ name = "engine-cli"
 version = "0.1.0"
 dependencies = [
  "engine-core",
+ "engine-document",
+ "engine-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -928,6 +932,15 @@ dependencies = [
  "rfd",
  "tempfile",
  "winit",
+]
+
+[[package]]
+name = "engine-protocol"
+version = "0.1.0"
+dependencies = [
+ "engine-document",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

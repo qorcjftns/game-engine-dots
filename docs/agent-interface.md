@@ -1,15 +1,28 @@
 # GUI·CLI·MCP 접근 규약
 
 전체 v1 범위·순서·인수 조건은 [개발계획](roadmap.md)을 기준으로 합니다.
-현재 CLI는 info·viewport만 지원합니다. 아래 M2 이후의 접점은 계획이며 아직 구현된 도구가 아닙니다.
+현재 CLI는 info·viewport와 저장된 프로젝트/장면의 읽기 전용 조회를 지원합니다.
+live 편집·MCP와 이후 접점은 아직 계획입니다.
 
 ```sh
 target/debug/engine-cli info
 target/debug/engine-cli viewport 1001 701
+target/debug/engine-cli project inspect "내 프로젝트/project.json"
+target/debug/engine-cli scene inspect "내 프로젝트/project.json"
 ```
 
 Windows 실행 파일은 `.exe`를 사용합니다. 현재 계약은 stdout JSON 한 건, 진단 로그 stderr,
 성공 종료 0·입력 오류 2입니다. 새 계약을 추가해도 기존 동작을 유지합니다.
+
+`project inspect`는 canonical `project_file`과 기존 `document` 전체를 반환합니다.
+`scene inspect`는 `project_file`, `project_name`, 논리 해상도, `scene.entities`, `assets`를 반환하며 ID와 그리기 순서를 바꾸지 않습니다.
+두 명령은 JSON과 문서 모델만 검증합니다. PNG 존재·디코딩, GUI의 저장 전 상태는 확인하지 않고 파일도 수정하지 않습니다.
+
+새 조회는 프로젝트의 `schema_version`과 별개인 `protocol_version: 1`, `source: "disk"`를 사용합니다.
+성공은 `status: "ok"`와 `data`, 실패는 `status: "error"`와 `error: {code, message}`를 포함합니다.
+오류 코드는 `invalid_arguments`, `project_not_found`, `project_access_denied`, `project_io`, `invalid_project`입니다.
+잘못된 JSON·미지원 형식 버전·모델 오류는 `invalid_project`로 묶고 이유를 message에 표시합니다. 실패 종료는 2입니다.
+기존 info·viewport와 그 외 legacy 오류의 `schema_version`/`ok` 출력 계약은 바꾸지 않습니다.
 
 ## M2: 같은 편집 세션 사용
 
