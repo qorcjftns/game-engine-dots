@@ -320,16 +320,14 @@ PNG 리소스와 실제 magenta 픽셀, 한글 표시와 잘림 없음을 확인
 이것은 정상 CI의 실제 native 창/renderer와 테스트 전용 GUI action 전달 검증입니다.
 물리 마우스 자동화·Windows 실기기·여러 DPI·macOS Dock Quit/강제 종료 보호를 완료한 것은 아닙니다.
 
-확인 시 원격 main은 `dd5a12bb`이고 PR #11~#14는 모두 OPEN입니다.
-M2는 구현 브랜치에서 검증된 상태이며 main에 병합된 것으로 기록하지 않습니다.
-PR #11은 main 대상 ready, #12→#13→#14는 선행 브랜치를 base로 한 Draft이며 병합/자동 병합을 수행하지 않았습니다.
+당시 확인한 원격 main은 `dd5a12bb`이고 PR #11~#14는 모두 OPEN이었습니다.
+당시 M2는 구현 브랜치에서 검증된 상태였고 이 기록 시점에는 병합하지 않았습니다. 이후 최종 M2 코드는 통합 PR #20으로 main에 반영됐습니다.
 최종 README·설계·이 기록 정리는 문서만 변경하며 실행 코드·manifest·lock·CI는 검증한 `015fa3b`와 같습니다.
 
 ## M3 구현과 검증 (2026-10-26)
 
 M3는 #16 snapshot/공통 출력 → #17 Play/input → #18 독립 player → #19 runtime 제어/회귀 PR의 stack이다.
-M2 최종 `050a8da`가 `feat/shared-editor-live-query`에 있으며 main에는 아직 선행 코드 전체가 반영되지 않았다.
-따라서 구현·검증과 main 병합 완료는 구분하며 이 PR들은 선행 병합을 기다리는 Draft이다.
+M2 최종 통합 #20과 M3 #16~#19는 이후 모두 병합되어 main `dd20edf`에 포함되었다.
 
 ### 실제 실행한 검사
 
@@ -357,3 +355,37 @@ Windows x64와 macOS native 창 smoke는 PR의 GitHub Actions에 등록했다. C
 Windows 실제 사용자의 키보드·마우스·DPI, 최소 OS 실기기, Mac Intel/Windows ARM은 아직 미확인이다.
 Dock Quit의 취소 보존은 미확인/미지원 경계로 남아 있고 강제 종료 뒤 미저장 복구 checkpoint는 구현하지 않았다.
 현재 복구 지점은 마지막 성공 저장본이다. M10의 개발 환경 없는 패키지·서명·공증·외부 배포 인수는 남아 있다.
+
+## M4 행동 작성과 제한 실행 (2026-10-26)
+
+구현은 #21 문서/실행 기반 → #22 작성 UI·CLI/MCP·player 진단 → #23 통합 회귀로 나뉩니다.
+M4의 macOS ARM64 로컬 전체 검사는 Rust 테스트99개+doctest1개, fmt/Clippy/workspace build, CLI 계약15건을 통과했습니다.
+`python3 scripts/native_behavior_smoke.py`는 실제 editor와 player 창 및 별도 CLI/MCP 프로세스로 다음을 확인했습니다.
+
+- MCP 소스 생성·검증, CLI 개체 연결, 동일 request ID 재전송의 중복 방지, draft 중 외부 소스 변경 거부.
+- 저장/재열기, v1→v2 migration, syntax 검증/시작 실패와 undo/redo, 편집 원본·파일 보존.
+- 입력을 지정한12tick 후 위치/state 변화, 실제 editor screenshot의 **예상 좌표 영역**에서 magenta 픽셀 확인.
+- 입력 없는 같은 tick의 editor/player 위치·state·log·화면 hash 일치, native player의 예상 좌표 픽셀 확인.
+- 무한 loop·0나누기·위험 native 함수 호출·타입 오류에서 file/line/entity 진단, 해당 tick 전체 rollback/pause, Resume 거부 및 Stop 뒤 편집 재개.
+- headless player 실패에서도 stdout JSON에 정확한 error 위치가 남음.
+
+native 자동 검사는 test host가 production EditorApp/Player를 호출하며 물리 키 입력을 대신하지 않습니다.
+player screenshot callback이 후속 frame에 도착하므로 캡처 전에 pause하고 두 frame을 기다려 metadata와 실제 pixel을 일치시켰습니다.
+증거는 `artifacts/native-behavior/behavior-summary.json`, frame PNG, player-frame JSON, editor/MCP 로그이며 CI artifact에도 포함합니다.
+macOS와 Windows에서 같은 회귀를 CI에 추가했습니다. 새 CI 실행 결과는 해당 PR head에서 별도로 확인합니다.
+
+별도 QA 에이전트가 macOS 실제 GUI에서 새 행동 생성→소스 직접 작성→문법 검증→적용→개체 연결→저장을 수행했습니다.
+실제 D 키 약300ms로 x40→78 이동과 Space 로그를 확인했고, Stop 후 원본 x40·revision·dirty가 보존됐습니다.
+연결 Undo/Redo, 정상 종료/재열기의 source와 binding 유지, syntax2행 및 runtime3행/entity73/tick1 오류와 tick0 rollback을 확인했습니다.
+
+![M4 소스 작성](images/m4-authoring-macos.png)
+![M4 실제 키 입력](images/m4-input-macos.png)
+![M4 런타임 오류](images/m4-error-macos.png)
+
+독립 리뷰에서 Rhai 표준 패키지의 `pad(text,2,"")` native 무한 반복을 발견해 패키지 없는 raw engine으로 교체했습니다.
+동적 변수의 사후 타입 검사로 정확한 대입 줄을 알 수 없는 문제는 읽기 상수+typed host 함수로 바꿔 해결했습니다.
+속성 입력 취소가 별도 행동 source draft까지 폐기하던 문제도 취소 범위를 분리하고 회귀 테스트를 추가했습니다.
+
+이 단계는 OS process sandbox나 byte 단위 RSS hard quota, full IDE/핫리로드, M5 물리, M10 패키징/서명 완료를 뜻하지 않습니다.
+Windows 실제 사용자 입력·여러 DPI, 최소 OS 실기기, Dock Quit 취소와 강제 종료 checkpoint는 기존 미확인/미지원 경계를 유지합니다.
+강제 종료 뒤 보장하는 복구 지점은 마지막 성공 저장본입니다.

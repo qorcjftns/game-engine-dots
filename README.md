@@ -25,10 +25,10 @@ AI 후보는 비교·수동 보정·승인 후 새 버전으로 적용하며, pr
 전체 단계, 지원 범위와 최종 인수 조건은 [개발계획](docs/roadmap.md)을 기준으로 합니다.
 
 현재 M1은 프로젝트 생성·PNG 배치·선택·이름/위치·드래그·undo/redo·저장·재열기까지 연결했습니다.
-M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 코드와 통합 검증을 마쳤습니다. 이 M3 stack은 M2 최종 코드를 기반으로 합니다.
+M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 코드와 통합 검증을 마쳤으며 M3와 함께 main에 병합되었습니다.
 M3는 실행 snapshot·공통 renderer/camera·Play/Pause/step/Stop·action 입력·독립 player·CLI/MCP 실행 제어를 구현했습니다.
 실행 중 문서 편집은 거부하고 Stop 뒤 원래 dirty·이력으로 편집을 재개합니다. [runtime 사용법과 경계](docs/runtime.md)를 참고하세요.
-행동 코드·도트/대화형 에셋 제작·export는 이후 단계입니다. M3 PR의 선행 병합과 OS별 검증 상태는 [검증 기록](docs/verification.md)과 구분합니다.
+M4는 프로젝트 행동 작성·검증·연결과 제한 실행·진단을 제공합니다. 도트/대화형 에셋 제작·export는 이후 단계입니다. OS별 검증 범위는 [검증 기록](docs/verification.md)을 따릅니다.
 검증용 게임/장면은 엔진의 기능을 확인하기 위한 fixture입니다.
 
 GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안의 콘텐츠에만
@@ -162,7 +162,7 @@ macOS Dock 메뉴의 Quit와 운영체제 강제 종료는 이 보호 경로의 
 ## M3 실행
 
 GUI에서 프로젝트를 연 뒤 **Play → Pause → 1 tick → Stop**을 사용할 수 있습니다.
-게임 화면을 클릭하면 WASD/방향키·Space/왼쪽 마우스의 action 상태를 관찰합니다. M3에는 사용자 행동 코드가 없어 스프라이트는 입력으로 이동하지 않습니다.
+게임 화면을 클릭하면 WASD/방향키·Space/왼쪽 마우스 action을 전달합니다. M4에서 행동을 연결하면 프로젝트 소스의 규칙에 따라 이동합니다.
 
 ```sh
 cargo run --locked -p engine-player -- path/to/project.json

@@ -1,13 +1,12 @@
-# M3 runtime와 호스트 경계
+# runtime와 호스트 경계
 
 M3 시작 snapshot은 확정 문서와 PNG 디코드 결과를 소유한다. GPU 자료·편집 이력·dirty를 소유하지 않는다.
 시작 시 자산을 전부 읽지 못하면 실패하며 이미 열린 문서와 저장 파일은 유지한다. 원본에 실행 상태를 반영하지 않는다.
 `engine-runtime`의 CPU RGBA 합성과 정수 배율 camera를 editor와 독립 player가 공유한다.
 렌더링 순서는 문서 개체 순서, 배경은 불투명, 합성은 정수 alpha 반올림이다.
-M3에는 행동 코드가 없어 입력으로 개체를 이동시키지 않는다. 입력 상태와 tick을 관찰하는 기반이다.
+M3는 입력 상태와 tick 기반을 제공했고 M4에서 프로젝트 행동 코드를 연결했다.
 
-이 브랜치의 선행 M2는 `050a8da`이다. GitHub에서 M2 PR은 병합됐으나 main은 PR12 상태이므로
-M3 PR은 M2 최종 브랜치를 선행으로 두며 main을 직접 변경하지 않는다.
+M2 통합 #20 및 M3 #16~#19는 main `dd20edf`에 반영되었다.
 
 ## 실행 제어와 입력
 
@@ -41,8 +40,7 @@ macOS 실제 독립 player의 같은 fixture 출력:
 `cargo run --locked -p engine-runtime --example behavior_probe`는 작은 텍스트 명령(`add`, `jump`, `fail`)을 파싱해
 정상 계산·줄 번호가 있는 문법 오류·10000 instruction 무한 반복 중단·실행 오류를 검사한다. 2026-10-26 macOS ARM64에서 네 경우를 실행했다.
 호스트 IO가 없는 명령 집합과 instruction budget은 같은 프로세스의 editor/player에 넣을 수 있는 격리 후보의 최소 실험이다.
-이 toy 문법을 제품 행동 언어로 확정하지 않는다. M4에서 표현력·소스 위치·메모리 예산·호스트 API를 포함해 실제 작성 경로를 선택해야 한다.
-Rhai/Wasm 등 외부 언어 backend의 통합/중단 가능성은 아직 검증하지 않았다.
+이 toy 문법을 제품 행동 언어로 확정하지 않는다. 이 toy는 비교 기준으로만 남긴다. M4의 실제 작성 경로와 Rhai 선택/중단 실험 결과는 아래 절에 기록한다.
 
 지원 1차 후보는 macOS ARM64 + Windows x64, OS별 native build이다. CI 기준은 macOS 15/Windows 2025 runner이며,
 사용자용 최소 OS 후보는 macOS 15/Windows 11이다. 최소 OS 실기기·Mac Intel·Windows ARM은 확정하지 않았고 M10에서 인수한다.

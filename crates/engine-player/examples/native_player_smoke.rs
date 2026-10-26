@@ -23,9 +23,15 @@ impl App for Smoke {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.player.ui(ui, frame);
         self.frames += 1;
+        // 캡처 callback은 후속 frame에 올 수 있다. 화면을 먼저 고정해 metadata tick과 일치시킨다.
+        if self.frames == 8 {
+            self.player.run.pause(true);
+        }
         if self.frames == 10 {
             let path = self.output.join("player-frame.png");
             let captured = self.captured.clone();
+            let metadata = self.output.join("player-frame.json");
+            let state = serde_json::json!({"runtime":self.player.run.status(), "viewport":self.player.view.viewport_pixels()});
             ui.ctx().request_screenshot(move |pixels| {
                 let bytes: Vec<_> = pixels.pixels.iter().flat_map(|p| p.to_array()).collect();
                 image::save_buffer_with_format(
@@ -37,6 +43,7 @@ impl App for Smoke {
                     image::ImageFormat::Png,
                 )
                 .unwrap();
+                std::fs::write(metadata, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
                 captured.store(true, Ordering::Release);
             });
         }

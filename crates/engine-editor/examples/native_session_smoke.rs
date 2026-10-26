@@ -85,6 +85,19 @@ impl NativeSmoke {
         }
         match command["action"].as_str().expect("command action") {
             "observe" => {}
+            "behavior_draft" => {
+                self.editor.load_behavior(Some(engine_document::BehaviorId(
+                    command["behavior_id"].as_u64().unwrap(),
+                )));
+                self.editor.behavior_draft.as_mut().unwrap().source =
+                    command["source"].as_str().unwrap().into();
+                self.editor.show_behavior = true;
+            }
+            "behavior_reset" => {
+                self.editor
+                    .load_behavior(self.editor.behavior_draft.as_ref().map(|d| d.id));
+                self.editor.show_behavior = false;
+            }
             "play" => self.editor.start_play(ctx).unwrap(),
             "pause" => self.editor.play.as_mut().unwrap().pause(true),
             "resume" => self.editor.play.as_mut().unwrap().pause(false),
