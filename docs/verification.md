@@ -301,3 +301,26 @@ OS 상태가 관측되지 않거나 30초를 넘으면 실패합니다. 실제 �
 최신 2026-07-28의 초기화 없는 SDK list/call 경로를 각각 실제 stdio 프로세스로 통과했습니다.
 native 교차 클라이언트는 초기화를 지원하는 2025-11-25를 명시합니다.
 기존 통합 64개에 새 SDK 호환 2개를 더한 최종 로컬 non-TCP 검사 범위는 66개입니다.
+
+## M2 최종 통합 결과와 병합 상태
+
+구현 commit `015fa3b`의 [정상 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40255432022)는
+macOS·Windows 모두 통과했습니다. Rust 테스트 75개(실제 TCP 9개 포함)와 doctest 1개,
+CLI 계약 15건, 포맷·Clippy·빌드·lockfile 불변 검사 및 실제 native GUI↔CLI↔공식 MCP 교차를 포함합니다.
+
+두 OS에서 CLI 이동 후 MCP 이름 변경을 같은 GUI에 적용하고 CLI 결과 조회·동일 ID replay를 확인했습니다.
+단순 최소화 요청이 아니라 실제 `viewport.minimized=true`를 기다린 뒤 변경했습니다.
+Mac은 UI frame 12, Windows는 frame 7이 그대로인 최소화 상태에서 revision 1→2와 새 이름을 관측했습니다.
+실제 복원 false를 확인한 뒤 같은 GUI action undo/redo는 revision 3/4를 만들었고,
+저장/재열기는 새 session ID·revision 0·clean 상태를 복원했습니다.
+정상 host 종료·연결 파일 삭제와 MCP 교차 결과는 script assertion·summary의 passed 기록으로 확인했습니다.
+
+사람이 양 OS 최종 frame-8 PNG를 직접 검토해 ‘MCP 공동 편집’ 이름·좌표(60,38), dirty 해제,
+PNG 리소스와 실제 magenta 픽셀, 한글 표시와 잘림 없음을 확인했습니다.
+이것은 정상 CI의 실제 native 창/renderer와 테스트 전용 GUI action 전달 검증입니다.
+물리 마우스 자동화·Windows 실기기·여러 DPI·macOS Dock Quit/강제 종료 보호를 완료한 것은 아닙니다.
+
+확인 시 원격 main은 `dd5a12bb`이고 PR #11~#14는 모두 OPEN입니다.
+M2는 구현 브랜치에서 검증된 상태이며 main에 병합된 것으로 기록하지 않습니다.
+PR #11은 main 대상 ready, #12→#13→#14는 선행 브랜치를 base로 한 Draft이며 병합/자동 병합을 수행하지 않았습니다.
+최종 README·설계·이 기록 정리는 문서만 변경하며 실행 코드·manifest·lock·CI는 검증한 `015fa3b`와 같습니다.

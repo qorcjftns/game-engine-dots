@@ -39,8 +39,10 @@ crates/engine-core/     현재: 화면 배치·시간 계산
 crates/engine-document/ 현재: 프로젝트 문서·PNG 가져오기·편집 명령·저장·undo/redo
 crates/engine-desktop/  현재: Macroquad 출력 검증 데모
 crates/engine-editor/   현재: 프로젝트·PNG 배치·선택·속성·드래그·undo/redo GUI
-crates/engine-protocol/ 현재: CLI 공통 JSON 응답·문서/장면 조회 자료형
-crates/engine-cli/      현재: 설정·표시 영역·저장된 프로젝트/장면 JSON 조회
+crates/engine-protocol/ 현재: disk/live 조회·편집 요청·receipt·오류 JSON 계약
+crates/engine-control/  현재: live snapshot·로컬 TCP·변경 큐·원장·공통 client
+crates/engine-cli/      현재: 설정·표시 영역·disk/live 조회·live 편집/결과 확인
+crates/engine-mcp/      현재: 공식 rmcp 기반 stdio 도구 3개
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```
@@ -106,8 +108,10 @@ crates/engine-core/     창 없이 쓸 수 있는 화면 배치·시간 계산
 crates/engine-document/ GUI에 독립적인 프로젝트 문서·편집 명령·파일 처리
 crates/engine-desktop/  Macroquad를 통한 창·입력·픽셀 화면 데모
 crates/engine-editor/   GUI 편집 화면·입력·파일 대화상자·미저장 확인
-crates/engine-protocol/ GUI에 독립적인 JSON 응답·문서/장면 조회 자료형
-crates/engine-cli/      에이전트용 JSON 명령
+crates/engine-protocol/ GUI에 독립적인 조회·편집·결과·오류 자료형
+crates/engine-control/  게시 상태·인증 통신·큐·중복 방지 원장·공통 client
+crates/engine-cli/      저장 파일/live 세션 조회·편집·결과 확인 JSON 명령
+crates/engine-mcp/      control client를 재사용하는 공식 SDK stdio 어댑터
 scripts/               두 운영체제에서 공통으로 쓰는 개발 명령
 docs/                  설계, 인터페이스, 검증 기록
 ```
