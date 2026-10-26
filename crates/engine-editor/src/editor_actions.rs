@@ -161,7 +161,12 @@ impl EditorApp {
                     self.save_with_publication();
                 }
             }
-            EditorAction::ResetDraft => self.synchronize_selection(),
+            EditorAction::ResetDraft => {
+                // 속성 패널의 취소는 그 패널의 입력만 취소한다. 행동 소스 draft는 별도로 보호한다.
+                if let Some(session) = &self.workspace.session {
+                    self.editing.synchronize(session.document());
+                }
+            }
             action => {
                 if !self.commit_edits() {
                     return;

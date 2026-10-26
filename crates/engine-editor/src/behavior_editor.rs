@@ -242,6 +242,32 @@ mod tests {
         assert_eq!(app.behavior_draft.as_ref().unwrap().source, "move(3,0);");
     }
     #[test]
+    fn inspector_reset_preserves_unrelated_behavior_source_draft() {
+        let (_dir, mut app, _) = crate::editing_tests::fixture();
+        let ctx = egui::Context::default();
+        let id = app
+            .apply_agent_command(
+                &ctx,
+                &C::AddBehavior {
+                    file: "move.rhai".into(),
+                    source: "move(1,0);".into(),
+                },
+            )
+            .unwrap()
+            .behavior_id
+            .unwrap();
+        app.load_behavior(Some(id));
+        app.behavior_draft.as_mut().unwrap().source = "move(9,0);".into();
+        app.editing.draft.as_mut().unwrap().name = "discard entity only".into();
+        app.process_action(&ctx, crate::editor_actions::EditorAction::ResetDraft);
+        assert_eq!(app.behavior_draft.as_ref().unwrap().source, "move(9,0);");
+        assert!(app.behavior_pending());
+        assert_ne!(
+            app.editing.draft.as_ref().unwrap().name,
+            "discard entity only"
+        );
+    }
+    #[test]
     fn source_validation_and_runtime_failure_preserve_editable_document() {
         let (_dir, mut app, id) = crate::editing_tests::fixture();
         let ctx = egui::Context::default();
