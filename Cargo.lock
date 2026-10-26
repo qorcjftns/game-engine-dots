@@ -1011,7 +1011,9 @@ name = "engine-host"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "engine-document",
  "engine-runtime",
+ "tempfile",
 ]
 
 [[package]]

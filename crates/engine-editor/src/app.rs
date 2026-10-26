@@ -203,6 +203,9 @@ impl EditorApp {
                 .default_size(210.0)
                 .size_range(160.0..=360.0)
                 .show(ui, |ui| {
+                    if self.play.is_some() {
+                        ui.disable();
+                    }
                     panel_heading(ui, "장면", "SCENE");
                     ui.add_space(14.0);
                     if let Some(session) = &self.workspace.session {
@@ -244,6 +247,9 @@ impl EditorApp {
                 .default_size(190.0)
                 .size_range(100.0..=320.0)
                 .show(ui, |ui| {
+                    if self.play.is_some() {
+                        ui.disable();
+                    }
                     panel_heading(ui, "리소스", "RESOURCES");
                     if ui
                         .add_enabled(
@@ -406,13 +412,11 @@ impl eframe::App for EditorApp {
         self.menu(ui);
         self.toolbar(ui);
         self.status_bar(ui);
-        ui.add_enabled_ui(self.play.is_none(), |ui| {
-            self.scene_panel(ui);
-            if self.show_inspector {
-                self.inspector_panel(ui);
-            }
-            self.resource_panel(ui);
-        });
+        self.scene_panel(ui);
+        if self.show_inspector {
+            self.inspector_panel(ui);
+        }
+        self.resource_panel(ui);
         self.viewport(ui);
         if self.play.is_none()
             && !self.workspace.form_is_open()

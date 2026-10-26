@@ -6,3 +6,6 @@ publish.workspace = true
 [dependencies]
 engine-runtime.workspace = true
 egui = "=0.37.0"
+[dev-dependencies]
+engine-document.workspace = true
+tempfile = "3"
