@@ -6,10 +6,14 @@ pub struct GameView {
     texture: Option<egui::TextureHandle>,
     run_id: Option<u64>,
     focused: bool,
+    viewport: Option<[u32; 4]>,
     keys: std::collections::HashSet<egui::Key>,
     mouse: bool,
 }
 impl GameView {
+    pub fn viewport_pixels(&self) -> Option<[u32; 4]> {
+        self.viewport
+    }
     pub fn release_focus(&mut self) {
         self.keys.clear();
         self.mouse = false;
@@ -36,6 +40,7 @@ impl GameView {
         let min = (response.rect.min.to_vec2() * ppp).ceil();
         let max = (response.rect.max.to_vec2() * ppp).floor();
         let size = (max - min).max(Vec2::ZERO);
+        self.viewport = None;
         let Some(camera) = CameraViewport::fit(size.x as u32, size.y as u32, width, height) else {
             self.keys.clear();
             self.mouse = false;
@@ -54,6 +59,12 @@ impl GameView {
             ((min + Vec2::new(camera.x as f32, camera.y as f32)) / ppp).to_pos2(),
             Vec2::new(camera.width as f32, camera.height as f32) / ppp,
         );
+        self.viewport = Some([
+            (rect.min.x * ppp).round() as u32,
+            (rect.min.y * ppp).round() as u32,
+            camera.width,
+            camera.height,
+        ]);
         painter.image(
             self.texture.as_ref().unwrap().id(),
             rect,

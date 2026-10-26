@@ -25,7 +25,7 @@ AI 후보는 비교·수동 보정·승인 후 새 버전으로 적용하며, pr
 전체 단계, 지원 범위와 최종 인수 조건은 [개발계획](docs/roadmap.md)을 기준으로 합니다.
 
 현재 M1은 프로젝트 생성·PNG 배치·선택·이름/위치·드래그·undo/redo·저장·재열기까지 연결했습니다.
-현재 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 구현과 통합 검증을 진행합니다.
+M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 코드와 통합 검증을 마쳤습니다. 이 M3 stack은 M2 최종 코드를 기반으로 합니다.
 M3는 실행 snapshot·공통 renderer/camera·Play/Pause/step/Stop·action 입력·독립 player·CLI/MCP 실행 제어를 구현했습니다.
 실행 중 문서 편집은 거부하고 Stop 뒤 원래 dirty·이력으로 편집을 재개합니다. [runtime 사용법과 경계](docs/runtime.md)를 참고하세요.
 행동 코드·도트/대화형 에셋 제작·export는 이후 단계입니다. M3 PR의 선행 병합과 OS별 검증 상태는 [검증 기록](docs/verification.md)과 구분합니다.
@@ -45,6 +45,9 @@ crates/engine-protocol/ 현재: disk/live 조회·편집 요청·receipt·오류
 crates/engine-control/  현재: live snapshot·로컬 TCP·변경 큐·원장·공통 client
 crates/engine-cli/      현재: 설정·표시 영역·disk/live 조회·live 편집/결과 확인
 crates/engine-mcp/      현재: 공식 rmcp 기반 stdio 도구 3개
+crates/engine-runtime/  현재: 실행 snapshot·고정 tick·action·논리 RGBA
+crates/engine-host/     현재: editor/player 공통 표시·입력 포커스
+crates/engine-player/   현재: 편집 UI 없는 프로젝트 실행 호스트
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```

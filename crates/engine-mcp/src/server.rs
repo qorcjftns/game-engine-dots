@@ -34,7 +34,7 @@ impl EditorTools {
         execute(move || engine_control::inspect_connection_file(file.as_path())).await
     }
     #[tool(
-        description = "같은 GUI 세션의 편집 요청을 접수합니다. queued/running은 적용 성공이 아니며 session_result로 확인합니다. 응답 유실 시 새 request_id로 재시도하지 마세요.",
+        description = "같은 GUI 세션의 편집·실행 제어 요청을 접수합니다. queued/running은 적용 성공이 아니며 session_result로 확인합니다. 응답 유실 시 새 request_id로 재시도하지 마세요.",
         annotations(read_only_hint = false)
     )]
     async fn session_mutate(&self, Parameters(input): Parameters<MutationInput>) -> CallToolResult {
@@ -62,7 +62,7 @@ impl ServerHandler for EditorTools {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("engine-mcp", env!("CARGO_PKG_VERSION")))
-            .with_instructions("로컬 GUI 한 개의 편집 통로입니다. 먼저 session_inspect로 session/revision을 확인하세요. 사람의 draft/drag/modal 중 변경은 거부됩니다. mutation receipt의 state를 확인하고 응답 유실은 동일 ID 결과 조회로 확인하세요. 프로젝트 파일 직접 쓰기·임의 코드 실행·provider 호출 도구는 제공하지 않습니다.".to_owned())
+            .with_instructions("로컬 GUI 한 개의 편집·실행 통로입니다. 먼저 session_inspect로 session/revision을 확인하세요. 사람의 draft/drag/modal 중 변경은 거부됩니다. runtime run_id로 pause/step/stop을 제어하며 실행 중 문서 변경은 거부됩니다. mutation receipt의 state를 확인하고 응답 유실은 동일 ID 결과 조회로 확인하세요. 프로젝트 파일 직접 쓰기·임의 코드 실행·provider 호출 도구는 제공하지 않습니다.".to_owned())
     }
 }
 async fn execute<T: Serialize + Send + 'static>(

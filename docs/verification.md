@@ -327,13 +327,13 @@ PR #11은 main 대상 ready, #12→#13→#14는 선행 브랜치를 base로 한 
 
 ## M3 구현과 검증 (2026-10-26)
 
-M3는 #16 snapshot/공통 출력 → #17 Play/input → #18 독립 player → runtime 제어/회귀 PR의 stack이다.
+M3는 #16 snapshot/공통 출력 → #17 Play/input → #18 독립 player → #19 runtime 제어/회귀 PR의 stack이다.
 M2 최종 `050a8da`가 `feat/shared-editor-live-query`에 있으며 main에는 아직 선행 코드 전체가 반영되지 않았다.
 따라서 구현·검증과 main 병합 완료는 구분하며 이 PR들은 선행 병합을 기다리는 Draft이다.
 
 ### 실제 실행한 검사
 
-- macOS ARM64에서 `python3 scripts/dev.py check`: rustfmt·Clippy `-D warnings`·Rust 테스트 85개와 doctest 1개·workspace build·CLI 계약 5+10건 통과.
+- macOS ARM64에서 `python3 scripts/dev.py check`: rustfmt·Clippy `-D warnings`·Rust 테스트 86개와 doctest 1개·workspace build·CLI 계약 5+10건 통과.
 - 실제 native editor fixture에서 dirty 편집 → Play → Pause 정지 → 정확 73 tick → 실행 중 undo 거부 → Stop → undo 원복 → 재시작 run ID 교체. JSON·PNG SHA256 보존.
 - `python3 scripts/native_runtime_smoke.py`: 실제 editor 창과 외부 CLI/MCP의 start/pause/73 tick/동일 request ID 재시도/old run 거부/Stop 후 이동과 undo를 검사. 독립 player의 동일 snapshot frame hash를 비교하고 두 native screenshot에서 magenta fixture 픽셀을 확인한다.
 - 실제 독립 player 창에서 alpha checker와 좌하단 clipping 표시를 확인했다. headless 73 tick frame hash `26f080ad36e9e825`는 같은 snapshot의 editor와 일치했다.

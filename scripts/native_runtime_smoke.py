@@ -12,7 +12,7 @@ from smoke_readonly import png_pixel
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug'
 
-def assert_native_pixels(path):
+def assert_native_pixels(path, bounds=None):
     """스크린샷 PNG를 표준 라이브러리로 복원해 검정/빈 프레임을 거부한다."""
     data=path.read_bytes()
     assert data[:8]==b"\x89PNG\r\n\x1a\n", path
@@ -27,6 +27,8 @@ def assert_native_pixels(path):
         if kind==b'IDAT': compressed.extend(value)
         offset+=length+12
     assert width>=320 and height>=180
+    x0,y0,w,h=bounds or (0,0,width,height)
+    assert w>0 and h>0 and x0+w<=width and y0+h<=height
     raw=zlib.decompress(compressed); stride=width*channels; previous=bytearray(stride); magenta=0
     assert len(raw)==height*(stride+1)
     for y in range(height):
@@ -42,7 +44,8 @@ def assert_native_pixels(path):
                 predictor=left if a<=b and a<=c else (up if b<=c else corner)
             else: assert kind==0; predictor=0
             row[x]=(row[x]+predictor)&255
-        magenta+=sum(row[x]>240 and row[x+1]<20 and row[x+2]>240 for x in range(0,stride,channels))
+        if y0<=y<y0+h:
+            magenta+=sum(row[x]>240 and row[x+1]<20 and row[x+2]>240 for x in range(x0*channels,(x0+w)*channels,channels))
         previous=row
     assert magenta>0, f"native fixture pixels missing: {path}"
     return {'width':width,'height':height,'magenta_pixels':magenta}
@@ -109,6 +112,8 @@ def main():
             _,blocked=mutate('edit-during-play',{'type':'undo'});assert blocked['state']=='rejected' and blocked['error']['code']=='editor_busy',blocked
             (directory/'host-command.json').write_text(json.dumps({'id':1,'action':'capture'}),encoding='utf-8')
             wait(lambda:(directory/'frame-1.png').exists())
+            viewport=wait(lambda:(read(directory/'host-observation.json') or {}).get('runtime_viewport'))
+            assert viewport is not None
             assert inspect()['runtime']['frame']>0
             _,receipt=mutate('stop',{'type':'run_stop','run_id':run_id});assert receipt['state']=='applied'
             _,receipt=mutate('restart',{'type':'run_start'});assert receipt['state']=='applied'
@@ -130,7 +135,7 @@ def main():
             assert player_state['tick']==73 and player_state['frame_hash']==after['runtime']['frame_hash']
             subprocess.run([str(BIN/f'examples/native_player_smoke{SUFFIX}'),str(project),str(directory)],check=True,timeout=30)
             assert (directory/'player-frame.png').exists()
-            pixels={name:assert_native_pixels(directory/name) for name in ['frame-1.png','player-frame.png']}
+            pixels={'editor_viewport':assert_native_pixels(directory/'frame-1.png',viewport),'player':assert_native_pixels(directory/'player-frame.png')}
             summary={'pixels':pixels,'result':'passed','physical_input':False,'exact_ticks':73,'editor':after['runtime'],'player':player_state,'observations':observations}
             (directory/'runtime-summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
             print('M3 native editor/CLI/MCP/player smoke passed')

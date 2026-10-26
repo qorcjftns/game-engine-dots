@@ -21,7 +21,7 @@ Pause 뒤 1 tick 또는 도구의 N tick은 1~100000 범위에서 정확히 실�
 
 ## 독립 player
 
-`cargo run -p engine-player -- PROJECT.json`은 editor/CLI/MCP 없이 같은 runtime과 입력·camera 호스트로 실행한다.
+`cargo run --locked -p engine-player -- PROJECT.json`은 editor/CLI/MCP 없이 같은 runtime과 입력·camera 호스트로 실행한다.
 프로젝트와 상대 PNG를 읽으며 저장하지 않는다. `--headless-ticks N`은 같은 snapshot의 정확 tick/hash smoke이다.
 headless 결과는 네이티브 창의 실제 출력 검증을 대신하지 않는다. M10 export 패키징·서명·공증은 별도 단계이다.
 
@@ -47,7 +47,7 @@ Rhai/Wasm 등 외부 언어 backend의 통합/중단 가능성은 아직 검증�
 지원 1차 후보는 macOS ARM64 + Windows x64, OS별 native build이다. CI 기준은 macOS 15/Windows 2025 runner이며,
 사용자용 최소 OS 후보는 macOS 15/Windows 11이다. 최소 OS 실기기·Mac Intel·Windows ARM은 확정하지 않았고 M10에서 인수한다.
 현재 60Hz 목표는 기본 320×180 정적 장면이다. 최대 해상도와 임의 자산 수에 대해 60Hz를 보장하지 않는다.
-성능 측정은 같은 fixture의 snapshot 생성·CPU 합성 시간·native tick/frame·프로세스 RSS를 각각 기록한다.
+현재 기준선은 native tick/frame·프로세스 시작+load+step 시간·headless RSS이며, snapshot 생성과 CPU 합성만의 별도 측정은 추가 과제이다.
 정적 화면은 1회 합성/업로드하여 반복 frame의 CPU 전체 재합성을 피한다.
 
 정상 창 닫기·Cmd+Q의 dirty 취소 보존은 기존 보호 경로를 사용한다. Dock Quit와 강제 종료의 미저장 복구는 아직 지원하지 않는다.
