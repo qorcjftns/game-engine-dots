@@ -177,8 +177,8 @@ mod tests {
     #[test]
     fn real_egui_taps_keep_edges_and_suppressed_focus_clears_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let s = engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 32, 18)
-            .unwrap();
+        let s =
+            engine_document::EditorSession::create(dir.path().join("p.json"), "p", 32, 18).unwrap();
         let mut run = PlaySession::new(engine_runtime::RuntimeWorld::snapshot(&s).unwrap(), 1);
         run.pause(true);
         let ctx = egui::Context::default();
