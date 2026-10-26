@@ -3,6 +3,7 @@
 mod agent_control;
 mod agent_editing;
 mod app;
+mod behavior_editor;
 mod canvas;
 mod canvas_input;
 mod editing;

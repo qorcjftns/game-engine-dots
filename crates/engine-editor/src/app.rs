@@ -13,6 +13,9 @@ use crate::{
 const ACCENT: Color32 = Color32::from_rgb(127, 188, 172);
 
 pub struct EditorApp {
+    pub(crate) show_behavior: bool,
+    pub(crate) behavior_draft: Option<crate::behavior_editor::BehaviorDraft>,
+    pub(crate) behavior_validation: Vec<String>,
     pub(crate) play: Option<engine_runtime::PlaySession>,
     pub(crate) next_run_id: u64,
     pub(crate) play_time: Option<std::time::Instant>,
@@ -35,6 +38,9 @@ pub struct EditorApp {
 impl Default for EditorApp {
     fn default() -> Self {
         Self {
+            show_behavior: false,
+            behavior_draft: None,
+            behavior_validation: Vec::new(),
             play: None,
             next_run_id: 0,
             play_time: None,
@@ -154,6 +160,23 @@ impl EditorApp {
             .resizable(false)
             .show(ui, |ui| {
                 self.play_toolbar(ui);
+                if ui
+                    .add_enabled(
+                        self.workspace.session.is_some() && self.play.is_none(),
+                        egui::Button::new("행동 코드…"),
+                    )
+                    .clicked()
+                {
+                    self.show_behavior = true;
+                    if self.behavior_draft.is_none() {
+                        self.load_behavior(
+                            self.workspace
+                                .session
+                                .as_ref()
+                                .and_then(|s| s.document().behaviors.first().map(|b| b.id)),
+                        );
+                    }
+                }
                 ui.horizontal(|ui| {
                     if let Some(session) = &self.workspace.session {
                         ui.label(RichText::new(&session.document().name).strong());
@@ -418,6 +441,7 @@ impl eframe::App for EditorApp {
         }
         self.resource_panel(ui);
         self.viewport(ui);
+        self.behavior_window(&context);
         if self.play.is_none()
             && !self.workspace.form_is_open()
             && self.pending_transition.is_none()
@@ -443,6 +467,8 @@ impl eframe::App for EditorApp {
             .dialogs(&context, self.pending_transition.is_none());
         if generation != self.workspace.generation {
             self.editing = EditingState::default();
+            self.load_behavior(None);
+            self.show_behavior = false;
         }
         self.publish_live(false);
 

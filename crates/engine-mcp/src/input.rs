@@ -1,5 +1,5 @@
 //! MCP schema 전용 입력입니다. 모든 정수와 문자열을 공통 계약으로 그대로 옮깁니다.
-use engine_document::{AssetId, EntityId, Position};
+use engine_document::{AssetId, BehaviorId, EntityId, Position};
 use engine_protocol::{MutationCommand, MutationRequest};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -33,6 +33,23 @@ pub struct PositionInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommandInput {
+    AddBehavior {
+        file: String,
+        source: String,
+    },
+    UpdateBehavior {
+        id: u64,
+        file: String,
+        source: String,
+    },
+    RemoveBehavior {
+        id: u64,
+    },
+    BindBehavior {
+        id: u64,
+        behavior_id: Option<u64>,
+    },
+    ValidateBehaviors {},
     AddSprite {
         asset_id: u64,
         name: String,
@@ -99,6 +116,22 @@ impl From<PositionInput> for Position {
 impl From<MutationInput> for MutationRequest {
     fn from(value: MutationInput) -> Self {
         let command = match value.command {
+            CommandInput::AddBehavior { file, source } => {
+                MutationCommand::AddBehavior { file, source }
+            }
+            CommandInput::UpdateBehavior { id, file, source } => MutationCommand::UpdateBehavior {
+                id: BehaviorId(id),
+                file,
+                source,
+            },
+            CommandInput::RemoveBehavior { id } => {
+                MutationCommand::RemoveBehavior { id: BehaviorId(id) }
+            }
+            CommandInput::BindBehavior { id, behavior_id } => MutationCommand::BindBehavior {
+                id: EntityId(id),
+                behavior_id: behavior_id.map(BehaviorId),
+            },
+            CommandInput::ValidateBehaviors {} => MutationCommand::ValidateBehaviors,
             CommandInput::AddSprite {
                 asset_id,
                 name,
@@ -193,6 +226,24 @@ mod tests {
             json!({"type":"remove_entity","id":-1}),
         ] {
             assert!(serde_json::from_value::<CommandInput>(command).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod behavior_contract_tests {
+    use super::*;
+    #[test]
+    fn mcp_behavior_schema_preserves_source_and_nullable_binding() {
+        for command in [
+            serde_json::json!({"type":"add_behavior","file":"이동.rhai","source":"// 한글\nmove(2,0);"}),
+            serde_json::json!({"type":"update_behavior","id":u64::MAX,"file":"이동.rhai","source":"move(2,0);"}),
+            serde_json::json!({"type":"bind_behavior","id":1,"behavior_id":null}),
+            serde_json::json!({"type":"validate_behaviors"}),
+        ] {
+            let input:MutationInput=serde_json::from_value(serde_json::json!({"expected_session_id":"s","expected_revision":1,"request_id":"behavior","timeout_ms":1000,"command":command})).unwrap();
+            let request: MutationRequest = input.into();
+            assert_eq!(serde_json::to_value(request.command).unwrap(), command);
         }
     }
 }

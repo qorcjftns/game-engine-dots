@@ -8,6 +8,8 @@ mod agent_control;
 mod agent_editing;
 #[path = "../src/app.rs"]
 mod app;
+#[path = "../src/behavior_editor.rs"]
+mod behavior_editor;
 #[path = "../src/canvas.rs"]
 mod canvas;
 #[path = "../src/canvas_input.rs"]

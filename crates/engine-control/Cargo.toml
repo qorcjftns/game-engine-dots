@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+engine-runtime.workspace = true
 engine-document.workspace = true
 engine-protocol.workspace = true
 getrandom = "0.4"

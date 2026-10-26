@@ -19,6 +19,12 @@ impl eframe::App for Player {
         ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
     fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
+        if let Some(error) = &self.run.status().error {
+            egui::Panel::top("runtime-error").show(ui, |ui| {
+                ui.colored_label(egui::Color32::LIGHT_RED,format!("{}:{}:{} · entity {:?} · tick {}: {}",error.file,error.line,error.column,error.entity_id.map(|id|id.0),error.tick,error.message));
+                ui.label("Execution stopped. Close the player and correct the project source in the editor.");
+            });
+        }
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| self.view.show(ui, &mut self.run, true));
@@ -35,8 +41,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.len() == 3 {
         let ticks: u32 = arguments[2].to_str().ok_or("tick 인코딩 오류")?.parse()?;
         run.pause(true);
-        run.step(ticks)?;
+        let outcome = run.step(ticks);
         println!("{}", serde_json::to_string(run.status())?);
+        outcome?;
         return Ok(());
     }
     let options = eframe::NativeOptions {

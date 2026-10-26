@@ -103,6 +103,7 @@ impl EditorApp {
 
     pub(crate) fn editor_busy(&self, context: &egui::Context) -> bool {
         self.native_io_active
+            || self.behavior_pending()
             || self.close_approved
             || self.pending_transition.is_some()
             || self.workspace.form_is_open()

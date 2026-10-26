@@ -280,6 +280,26 @@ pub fn apply_command(
     session: &mut EditorSession,
 ) -> Result<MutationEffect> {
     let edit = match command {
+        MutationCommand::AddBehavior { file, source } => Some(EditCommand::AddBehavior {
+            file: file.clone(),
+            source: source.clone(),
+        }),
+        MutationCommand::UpdateBehavior { id, file, source } => Some(EditCommand::UpdateBehavior {
+            id: *id,
+            file: file.clone(),
+            source: source.clone(),
+        }),
+        MutationCommand::RemoveBehavior { id } => Some(EditCommand::RemoveBehavior { id: *id }),
+        MutationCommand::BindBehavior { id, behavior_id } => Some(EditCommand::BindBehavior {
+            id: *id,
+            behavior_id: *behavior_id,
+        }),
+        MutationCommand::ValidateBehaviors => {
+            return Ok(MutationEffect {
+                diagnostics: engine_runtime::validate_behaviors(session.document()),
+                ..Default::default()
+            });
+        }
         MutationCommand::RunStart
         | MutationCommand::RunPause { .. }
         | MutationCommand::RunStep { .. }
@@ -325,6 +345,8 @@ pub fn apply_command(
             .execute(edit)
             .map(|result| MutationEffect {
                 entity_id: result.entity_id,
+                behavior_id: result.behavior_id,
+                diagnostics: Vec::new(),
             })
             .map_err(|error| failure(ErrorCode::CommandFailed, error.to_string())),
         None => Ok(MutationEffect::default()),
@@ -585,7 +607,10 @@ mod extra_tests {
         assert!(matches!(
             receipt.state,
             MutationState::Applied {
-                effect: MutationEffect { entity_id: Some(_) },
+                effect: MutationEffect {
+                    entity_id: Some(_),
+                    ..
+                },
                 ..
             }
         ));
