@@ -10,6 +10,9 @@ impl EditorApp {
             .default_size(260.0)
             .size_range(200.0..=400.0)
             .show(ui, |ui| {
+                if self.play.is_some() {
+                    ui.disable();
+                }
                 ui.strong("속성");
                 ui.separator();
                 ui.add_space(10.0);

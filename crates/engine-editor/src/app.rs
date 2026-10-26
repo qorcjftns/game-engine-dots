@@ -13,6 +13,10 @@ use crate::{
 const ACCENT: Color32 = Color32::from_rgb(127, 188, 172);
 
 pub struct EditorApp {
+    pub(crate) play: Option<engine_runtime::PlaySession>,
+    pub(crate) next_run_id: u64,
+    pub(crate) play_time: Option<std::time::Instant>,
+    pub(crate) game_view: engine_host::GameView,
     pub(crate) live_control: Option<crate::agent_control::LiveControl>,
     pub(crate) native_io_active: bool,
     pub(crate) workspace: ProjectWorkspace,
@@ -31,6 +35,10 @@ pub struct EditorApp {
 impl Default for EditorApp {
     fn default() -> Self {
         Self {
+            play: None,
+            next_run_id: 0,
+            play_time: None,
+            game_view: Default::default(),
             live_control: None,
             native_io_active: false,
             workspace: ProjectWorkspace::default(),
@@ -141,10 +149,11 @@ impl EditorApp {
             });
     }
 
-    fn toolbar(&self, ui: &mut egui::Ui) {
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
         egui::Panel::top("editor_toolbar")
             .resizable(false)
             .show(ui, |ui| {
+                self.play_toolbar(ui);
                 ui.horizontal(|ui| {
                     if let Some(session) = &self.workspace.session {
                         ui.label(RichText::new(&session.document().name).strong());
@@ -162,9 +171,11 @@ impl EditorApp {
                         ui.weak("파일 메뉴에서 프로젝트를 생성하거나 여세요");
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_enabled(false, egui::Button::new("플레이"))
-                            .on_hover_text("플레이 미리보기는 아직 연결되지 않았습니다.");
-                        ui.label("편집 모드");
+                        ui.label(if self.play.is_some() {
+                            "실행 모드"
+                        } else {
+                            "편집 모드"
+                        });
                     });
                 });
             });
@@ -192,6 +203,9 @@ impl EditorApp {
                 .default_size(210.0)
                 .size_range(160.0..=360.0)
                 .show(ui, |ui| {
+                    if self.play.is_some() {
+                        ui.disable();
+                    }
                     panel_heading(ui, "장면", "SCENE");
                     ui.add_space(14.0);
                     if let Some(session) = &self.workspace.session {
@@ -233,6 +247,9 @@ impl EditorApp {
                 .default_size(190.0)
                 .size_range(100.0..=320.0)
                 .show(ui, |ui| {
+                    if self.play.is_some() {
+                        ui.disable();
+                    }
                     panel_heading(ui, "리소스", "RESOURCES");
                     if ui
                         .add_enabled(
@@ -309,6 +326,17 @@ impl EditorApp {
             });
             ui.separator();
 
+            if let Some(run) = &mut self.play {
+                self.game_view.show(
+                    ui,
+                    run,
+                    self.pending_transition.is_none()
+                        && !self.show_about
+                        && self.workspace.error.is_none(),
+                );
+                self.canvas_interaction = None;
+                return;
+            }
             if let Some(session) = &self.workspace.session {
                 self.canvas_interaction = Some(self.workspace.preview.show(
                     ui,
@@ -372,6 +400,7 @@ impl EditorApp {
 impl eframe::App for EditorApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_native_close(context);
+        self.advance_play(context);
         self.drain_agent_requests(context);
         self.publish_live(false);
     }
@@ -389,7 +418,11 @@ impl eframe::App for EditorApp {
         }
         self.resource_panel(ui);
         self.viewport(ui);
-        if !self.workspace.form_is_open() && self.pending_transition.is_none() && !self.show_about {
+        if self.play.is_none()
+            && !self.workspace.form_is_open()
+            && self.pending_transition.is_none()
+            && !self.show_about
+        {
             if self.commit_requested {
                 self.commit_edits();
                 self.commit_requested = false;
@@ -423,7 +456,7 @@ impl eframe::App for EditorApp {
                 ui.label("프로젝트 생성·열기, PNG 가져오기·배치와 저장을 지원합니다.");
                 ui.label("장면에서 개체를 선택하고 이름과 픽셀 위치를 편집할 수 있습니다.");
                 ui.label("드래그·실행 취소·다시 실행과 미저장 변경 보호를 지원합니다.");
-                ui.label("플레이 미리보기는 아직 연결되지 않았습니다.");
+                ui.label("Play·Pause·1 tick·Stop으로 실행 복사본을 확인할 수 있습니다.");
             });
     }
 }

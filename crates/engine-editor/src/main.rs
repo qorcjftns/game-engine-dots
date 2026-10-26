@@ -10,6 +10,7 @@ mod editor_actions;
 mod inspector;
 mod new_project;
 mod platform;
+mod play;
 mod project_workflow;
 mod raster;
 mod resources;

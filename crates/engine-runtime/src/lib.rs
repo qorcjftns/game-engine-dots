@@ -1,4 +1,6 @@
-//! GUI나 편집 이력을 소유하지 않는 실행 snapshot과 공통 논리 픽셀 출력.
+mod play;
+pub use play::{ActionInput, PlaySession, RunStatus, pixel_hash};
+// GUI나 편집 이력을 소유하지 않는 실행 snapshot과 공통 논리 픽셀 출력.
 mod raster;
 use engine_document::{AssetId, EditorSession, PngPixels, ProjectDocument};
 pub use raster::{BACKGROUND, render_scene};
@@ -12,6 +14,15 @@ pub struct RuntimeWorld {
 impl RuntimeWorld {
     pub fn snapshot(session: &EditorSession) -> engine_document::Result<Self> {
         session.document().validate()?;
+        // Editor cache에 더해 소유하는 디코드 자료를 256 MiB로 제한한다.
+        let bytes = session.document().assets.iter().try_fold(0u64, |sum, a| {
+            sum.checked_add(u64::from(a.width) * u64::from(a.height) * 4)
+        });
+        if bytes.is_none_or(|bytes| bytes > 256 * 1024 * 1024) {
+            return Err(engine_document::DocumentError::InvalidDocument(
+                "runtime PNG 디코드 예산 256 MiB를 초과했습니다.".into(),
+            ));
+        }
         let mut assets = HashMap::new();
         for asset in &session.document().assets {
             assets.insert(asset.id, session.read_png_asset(asset.id)?);

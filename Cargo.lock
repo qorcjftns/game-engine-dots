@@ -996,6 +996,7 @@ dependencies = [
  "engine-control",
  "engine-core",
  "engine-document",
+ "engine-host",
  "engine-protocol",
  "engine-runtime",
  "image 0.25.10",
@@ -1003,6 +1004,16 @@ dependencies = [
  "serde_json",
  "tempfile",
  "winit",
+]
+
+[[package]]
+name = "engine-host"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "engine-document",
+ "engine-runtime",
+ "tempfile",
 ]
 
 [[package]]
