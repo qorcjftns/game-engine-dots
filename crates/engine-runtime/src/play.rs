@@ -147,7 +147,7 @@ mod tests {
     fn run() -> PlaySession {
         let dir = tempfile::tempdir().unwrap();
         let s =
-            engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 2, 2).unwrap();
+            engine_document::EditorSession::create(dir.path().join("p.json"), "p", 2, 2).unwrap();
         PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1)
     }
     #[test]
@@ -187,7 +187,7 @@ mod boundary_tests {
     fn pause_discards_pending_taps_and_explicit_steps_ignore_host_frames() {
         let dir = tempfile::tempdir().unwrap();
         let s =
-            engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 2, 2).unwrap();
+            engine_document::EditorSession::create(dir.path().join("p.json"), "p", 2, 2).unwrap();
         let mut a = PlaySession::new(RuntimeWorld::snapshot(&s).unwrap(), 1);
         let input = ActionInput {
             left: true,
@@ -216,7 +216,7 @@ mod pause_regression {
     fn pause_discards_pending_taps() {
         let dir = tempfile::tempdir().unwrap();
         let s =
-            engine_document::EditorSession::create(&dir.path().join("p.json"), "p", 2, 2).unwrap();
+            engine_document::EditorSession::create(dir.path().join("p.json"), "p", 2, 2).unwrap();
         let mut run = PlaySession::new(crate::RuntimeWorld::snapshot(&s).unwrap(), 1);
         run.set_input(ActionInput {
             left: true,

@@ -1040,6 +1040,7 @@ dependencies = [
  "engine-document",
  "engine-host",
  "engine-runtime",
+ "image 0.25.10",
  "serde_json",
 ]
 

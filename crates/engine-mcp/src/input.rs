@@ -167,6 +167,10 @@ mod tests {
             json!({"type":"undo"}),
             json!({"type":"redo"}),
             json!({"type":"save"}),
+            json!({"type":"run_start"}),
+            json!({"type":"run_pause","run_id":7,"paused":true}),
+            json!({"type":"run_stop","run_id":7}),
+            json!({"type":"run_step","run_id":7,"ticks":73,"input":{"left":true,"right":false,"up":false,"down":false,"primary":false,"pointer":null}}),
         ] {
             let value = json!({
                 "expected_session_id": "session",

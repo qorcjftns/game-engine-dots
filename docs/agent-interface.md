@@ -195,3 +195,26 @@ v1의 공동 편집은 로컬 GUI 한 개/프로젝트 한 개가 기준입니�
 MCP가 CLI 출력 문자열을 재해석하거나 별도 편집 규칙/자체 MCP 프로토콜을 구현하지 않습니다.
 export된 일반 게임이 편집 서버·대화/이미지 provider·그 키를 필수로 요구하거나 개발용 제어/디버그 기능을 자동 노출하지 않게 합니다.
 인증·연결/도구 실행과 프로젝트 게임 코드의 실행 경계를 구분해 검사합니다.
+
+## M3 실행 조회와 제어
+
+`session inspect`/MCP `session_inspect`의 `runtime`은 정지 중 `null`, 실행 중 `run_id`, `paused`, `tick`, `frame`, `input`, `pressed`, `released`, `frame_hash`를 포함합니다.
+입력 값은 마지막 완료 tick의 값입니다. frame은 표시 요청 횟수이며 GPU 완료를 보장하지 않습니다. frame_hash는 공통 RGBA의 FNV-1a 64bit 회귀 식별자이며 암호학적 무결성 용도가 아닙니다.
+실행은 문서 revision을 바꾸지 않고, 매 Play의 run ID가 바뀝니다. 요청은 기존 편집 session ID/revision/request ID/timeout 규칙을 그대로 사용합니다.
+
+```json
+{"expected_session_id":"조회한 세션 ID","expected_revision":0,"request_id":"play-1","timeout_ms":5000,"command":{"type":"run_start"}}
+```
+
+이 JSON을 파일로 저장해 `engine-cli session mutate --connection-file CONNECTION --request-file REQUEST`로 보내거나 MCP `session_mutate` 인수로 전달합니다.
+결과는 기존 `session result`/`session_result`로 확인합니다. `run_start` 후 조회한 run ID를 다음 명령에 사용합니다.
+
+```json
+{"type":"run_pause","run_id":1,"paused":true}
+{"type":"run_step","run_id":1,"ticks":73,"input":{"left":true,"right":false,"up":false,"down":false,"primary":false,"pointer":null}}
+{"type":"run_stop","run_id":1}
+```
+
+Step은 Pause에서 1~100000 tick을 정확히 처리합니다. 명시적 input은 마지막 완료 tick을 기준으로 비교하므로 중간 GUI frame의 포커스 처리와 무관합니다.
+같은 request ID를 재전송하면 기존 결과만 반환하며 tick이 중복 진행되지 않습니다. 오래된 run ID는 `run_mismatch`로 거부합니다.
+실행 중 문서 변경은 `editor_busy`로 거부하지만 실행 조회와 제어는 가능합니다. Stop 후 기존 문서 편집을 다시 사용할 수 있습니다.

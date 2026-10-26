@@ -42,7 +42,8 @@ impl EditorApp {
                 if !run.status().paused || !(1..=100000).contains(ticks) {
                     return Err(invalid("Pause 상태에서 1~100000 tick을 지정하세요.".into()));
                 }
-                run.step_with_input(*ticks, *input).map_err(|e| invalid(e.into()))?;
+                run.step_with_input(*ticks, *input)
+                    .map_err(|e| invalid(e.into()))?;
             }
             C::RunStop { .. } => self.stop_play(),
             _ => unreachable!(),
@@ -144,10 +145,8 @@ impl EditorApp {
                 start = true;
             }
         });
-        if start {
-            if let Err(error) = self.start_play(ui.ctx()) {
-                self.workspace.status = error;
-            }
+        if start && let Err(error) = self.start_play(ui.ctx()) {
+            self.workspace.status = error;
         }
         if stop {
             self.stop_play();
@@ -190,5 +189,113 @@ mod tests {
         app.start_play(&ctx).unwrap();
         app.stop_play();
         assert!(app.workspace.session.as_ref().unwrap().can_redo());
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    use super::*;
+    use engine_control::{inspect_connection_file, lookup_connection_file, mutate_connection_file};
+    use engine_protocol::{ErrorCode, MutationCommand as C, MutationRequest, MutationState};
+    #[test]
+    fn tcp_runtime_steps_deduplicate_and_old_runs_cannot_change_new_runs() {
+        use eframe::App;
+        let (_dir, mut app, _) = crate::editing_tests::fixture();
+        let control = tempfile::tempdir().unwrap();
+        let path = control.path().join("control.json");
+        let ctx = egui::Context::default();
+        app.start_agent_control(
+            &ctx,
+            crate::startup::AgentControlOptions {
+                connection_file: Some(path.clone()),
+            },
+        );
+        let first = inspect_connection_file(&path).unwrap();
+        let request = |id: &str, command| MutationRequest {
+            expected_session_id: first.session_id.clone(),
+            expected_revision: first.revision,
+            request_id: id.into(),
+            timeout_ms: 5000,
+            command,
+        };
+        let mut frame = eframe::Frame::_new_kittest();
+        for r in [
+            request("start", C::RunStart),
+            request(
+                "pause",
+                C::RunPause {
+                    run_id: 1,
+                    paused: true,
+                },
+            ),
+        ] {
+            mutate_connection_file(&path, r.clone()).unwrap();
+            app.logic(&ctx, &mut frame);
+            assert!(matches!(
+                lookup_connection_file(&path, &first.session_id, &r.request_id)
+                    .unwrap()
+                    .state,
+                MutationState::Applied { .. }
+            ));
+        }
+        let before = inspect_connection_file(&path)
+            .unwrap()
+            .runtime
+            .unwrap()
+            .tick;
+        let step = request(
+            "step",
+            C::RunStep {
+                run_id: 1,
+                ticks: 73,
+                input: Default::default(),
+            },
+        );
+        mutate_connection_file(&path, step.clone()).unwrap();
+        app.logic(&ctx, &mut frame);
+        let receipt = lookup_connection_file(&path, &first.session_id, "step").unwrap();
+        assert_eq!(mutate_connection_file(&path, step).unwrap(), receipt);
+        app.logic(&ctx, &mut frame);
+        assert_eq!(
+            inspect_connection_file(&path)
+                .unwrap()
+                .runtime
+                .unwrap()
+                .tick,
+            before + 73
+        );
+        for r in [
+            request("stop", C::RunStop { run_id: 1 }),
+            request("restart", C::RunStart),
+        ] {
+            mutate_connection_file(&path, r).unwrap();
+            app.logic(&ctx, &mut frame);
+        }
+        mutate_connection_file(&path, request("stale", C::RunStop { run_id: 1 })).unwrap();
+        app.logic(&ctx, &mut frame);
+        assert!(matches!(
+            lookup_connection_file(&path, &first.session_id, "stale")
+                .unwrap()
+                .state,
+            MutationState::Rejected {
+                error: engine_protocol::ApiError {
+                    code: ErrorCode::RunMismatch,
+                    ..
+                },
+                ..
+            }
+        ));
+        assert_eq!(
+            inspect_connection_file(&path)
+                .unwrap()
+                .runtime
+                .unwrap()
+                .run_id,
+            2
+        );
+        assert_eq!(
+            inspect_connection_file(&path).unwrap().revision,
+            first.revision
+        );
     }
 }

@@ -35,3 +35,20 @@ macOS ARM64/Retina 실제 eframe 창에서 dirty 문서 Play→Pause→73 tick�
 macOS 실제 독립 player의 같은 fixture 출력:
 
 ![M3 player](images/m3-player-macos.png)
+
+## M4 선행 bounded 실행 실험과 지원 후보
+
+`cargo run --locked -p engine-runtime --example behavior_probe`는 작은 텍스트 명령(`add`, `jump`, `fail`)을 파싱해
+정상 계산·줄 번호가 있는 문법 오류·10000 instruction 무한 반복 중단·실행 오류를 검사한다. 2026-10-26 macOS ARM64에서 네 경우를 실행했다.
+호스트 IO가 없는 명령 집합과 instruction budget은 같은 프로세스의 editor/player에 넣을 수 있는 격리 후보의 최소 실험이다.
+이 toy 문법을 제품 행동 언어로 확정하지 않는다. M4에서 표현력·소스 위치·메모리 예산·호스트 API를 포함해 실제 작성 경로를 선택해야 한다.
+Rhai/Wasm 등 외부 언어 backend의 통합/중단 가능성은 아직 검증하지 않았다.
+
+지원 1차 후보는 macOS ARM64 + Windows x64, OS별 native build이다. CI 기준은 macOS 15/Windows 2025 runner이며,
+사용자용 최소 OS 후보는 macOS 15/Windows 11이다. 최소 OS 실기기·Mac Intel·Windows ARM은 확정하지 않았고 M10에서 인수한다.
+현재 60Hz 목표는 기본 320×180 정적 장면이다. 최대 해상도와 임의 자산 수에 대해 60Hz를 보장하지 않는다.
+성능 측정은 같은 fixture의 snapshot 생성·CPU 합성 시간·native tick/frame·프로세스 RSS를 각각 기록한다.
+정적 화면은 1회 합성/업로드하여 반복 frame의 CPU 전체 재합성을 피한다.
+
+정상 창 닫기·Cmd+Q의 dirty 취소 보존은 기존 보호 경로를 사용한다. Dock Quit와 강제 종료의 미저장 복구는 아직 지원하지 않는다.
+강제 중단 뒤 복구 가능한 지점은 마지막 성공 저장이며 M3가 checkpoint나 마지막 입력 복구를 추가하지 않는다.

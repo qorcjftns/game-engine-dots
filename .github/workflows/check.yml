@@ -39,6 +39,10 @@ jobs:
         run: git diff --exit-code -- Cargo.lock
       - name: Check a native window with external CLI and MCP processes
         run: python scripts/dev.py native-mcp-smoke
+      - name: Build M3 native smoke hosts
+        run: python -c "import sys; sys.path.insert(0, 'scripts'); import dev; dev.cargo('build', '--locked', '--workspace', '--examples')"
+      - name: Check native runtime controls and independent player
+        run: python scripts/native_runtime_smoke.py
       - name: Preserve native session evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -49,5 +53,6 @@ jobs:
             artifacts/native-session/native-summary.json
             artifacts/native-session/native-host.log
             artifacts/native-session/mcp-host.log
+            artifacts/native-runtime/
           if-no-files-found: ignore
           retention-days: 7
