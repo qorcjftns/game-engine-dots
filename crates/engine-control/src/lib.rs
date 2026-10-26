@@ -2,10 +2,15 @@
 //! 연결 파일에는 비밀 token이 있으므로 사용자 전용 외부 경로를 사용하고 출력하지 않습니다.
 
 mod connection;
+mod mutation;
 mod server;
 mod snapshot;
 
-pub use connection::inspect_connection_file;
+pub use connection::{inspect_connection_file, lookup_connection_file, mutate_connection_file};
+pub use mutation::{
+    MUTATION_QUEUE_CAPACITY, MutationCommand, MutationEffect, MutationInbox, PendingMutation,
+    RECEIPT_CAPACITY, apply_command,
+};
 pub use server::QueryServer;
 pub use snapshot::{SessionTracker, SnapshotPublisher};
 

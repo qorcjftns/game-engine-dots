@@ -1,8 +1,9 @@
 //! 문서 소유권을 넘기지 않고 확정 문서의 읽기 전용 사본만 게시한다.
 
 use eframe::egui;
-use engine_control::{QueryServer, SessionTracker, SnapshotPublisher};
+use engine_control::{MutationInbox, QueryServer, SessionTracker, SnapshotPublisher};
 use engine_document::EditorSession;
+use engine_protocol::LiveInspection;
 
 use crate::{app::EditorApp, startup::AgentControlOptions};
 
@@ -12,6 +13,7 @@ pub(crate) struct LiveControl {
     tracker: SessionTracker,
     publisher: SnapshotPublisher,
     context: egui::Context,
+    pub(crate) inbox: MutationInbox,
 }
 
 impl LiveControl {
@@ -26,11 +28,14 @@ impl LiveControl {
         let initial = tracker.observe(generation, session, busy)?;
         let server = QueryServer::start_with_snapshot(path, initial)?;
         let publisher = server.publisher();
+        let wake_context = context.clone();
+        let inbox = server.enable_mutations(move || wake_context.request_repaint())?;
         Ok(Self {
             _server: server,
             tracker,
             publisher,
             context: context.clone(),
+            inbox,
         })
     }
 
@@ -39,9 +44,10 @@ impl LiveControl {
         generation: u64,
         session: Option<&EditorSession>,
         busy: bool,
-    ) -> engine_control::Result<()> {
+    ) -> engine_control::Result<LiveInspection> {
         let snapshot = self.tracker.observe(generation, session, busy)?;
-        self.publisher.publish(snapshot)
+        self.publisher.publish(snapshot.clone())?;
+        Ok(snapshot)
     }
 }
 
@@ -82,7 +88,7 @@ impl EditorApp {
                 self.live_control = Some(control);
                 self.publish_live(false);
                 if self.live_control.is_some() {
-                    self.workspace.status = "에이전트의 읽기 전용 연결을 시작했습니다.".into();
+                    self.workspace.status = "에이전트의 로컬 공동 편집 연결을 시작했습니다.".into();
                 }
             }
             Err(error) => {
@@ -93,8 +99,9 @@ impl EditorApp {
         }
     }
 
-    fn editor_busy(&self, context: &egui::Context) -> bool {
+    pub(crate) fn editor_busy(&self, context: &egui::Context) -> bool {
         self.native_io_active
+            || self.close_approved
             || self.pending_transition.is_some()
             || self.workspace.form_is_open()
             || self.show_about
@@ -109,14 +116,11 @@ impl EditorApp {
                 .is_some_and(|session| self.editing.has_pending_changes(session.document()))
     }
 
-    pub(crate) fn publish_live(&mut self, force_busy: bool) {
-        let Some(context) = self
+    pub(crate) fn publish_live(&mut self, force_busy: bool) -> Option<LiveInspection> {
+        let context = self
             .live_control
             .as_ref()
-            .map(|control| control.context.clone())
-        else {
-            return;
-        };
+            .map(|control| control.context.clone())?;
         let busy = force_busy || self.editor_busy(&context);
         if let (Some(control), Some(session)) = (&self.live_control, &self.workspace.session)
             && let Some(project_root) = session.project_file().parent()
@@ -124,17 +128,21 @@ impl EditorApp {
         {
             self.live_control = None;
             self.workspace.error = Some("연결 파일이 열린 프로젝트 안에 있어 연결을 중단했습니다. 프로젝트 밖의 사용자 전용 경로로 다시 시작하세요.".into());
-            return;
+            return None;
         }
         let result = self.live_control.as_mut().unwrap().publish(
             self.workspace.generation,
             self.workspace.session.as_ref(),
             busy,
         );
-        if let Err(error) = result {
-            // 오래된 사본을 계속 제공하지 않는다. 문서는 유지하고 연결만 닫는다.
-            self.live_control = None;
-            self.workspace.error = Some(format!("에이전트 연결을 중단했습니다: {error}"));
+        match result {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                // 오래된 사본을 계속 제공하지 않는다. 문서는 유지하고 연결만 닫는다.
+                self.live_control = None;
+                self.workspace.error = Some(format!("에이전트 연결을 중단했습니다: {error}"));
+                None
+            }
         }
     }
 

@@ -2,7 +2,7 @@
 
 전체 v1 범위·순서·인수 조건은 [개발계획](roadmap.md)을 기준으로 합니다.
 현재 CLI는 info·viewport, 저장된 프로젝트/장면 조회와 opt-in GUI live 조회를 지원합니다.
-live 변경·MCP와 이후 접점은 아직 계획입니다.
+같은 GUI 세션의 기존 스프라이트 변경·이력·저장과 공식 SDK 기반 MCP stdio 어댑터를 지원합니다.
 
 ```sh
 target/debug/engine-cli info
@@ -44,15 +44,84 @@ JSONL 한 요청/응답 뒤 연결을 닫습니다. 요청 8 KiB·응답 4 MiB, 
 작업 스레드 4개·대기 연결 8개로 제한합니다. 초과 요청은 `request_too_large`, 큰 응답은
 `response_too_large`, 포화는 `server_busy`입니다. 연결/기한 실패는 `control_io`, 잘못된 연결 파일은
 `invalid_connection_file`, 인증은 `unauthorized`, 메시지는 `invalid_request`, 버전은 `unsupported_protocol`입니다.
-이 단계는 조회만 지원하며 편집 요청을 받지 않습니다. 전체 TCP 회귀는 두 OS CI에서 필수 실행하고,
+에디터는 명시적 opt-in 실행에서 조회와 다음 변경 요청을 지원합니다. 전체 TCP 회귀는 두 OS CI에서 필수 실행하고,
 소켓이 제한된 로컬 부분 검사는 실제 TCP·native GUI 교차 확인과 구분해 기록합니다.
+
+## 현재 live 변경과 결과 조회
+
+먼저 inspect로 session ID·revision과 기존 asset/entity ID를 확인합니다. 요청 파일 예시:
+
+```json
+{
+  "expected_session_id": "inspect에서 받은 session_id",
+  "expected_revision": 3,
+  "request_id": "move-hero-001",
+  "timeout_ms": 5000,
+  "command": {"type": "move_entity", "id": 73, "position": {"x": 60, "y": 38}}
+}
+```
+
+```sh
+engine-cli session mutate --connection-file /사용자/외부경로/control.json --request-file move.json
+engine-cli session result --connection-file /사용자/외부경로/control.json --session-id SESSION_ID --request-id move-hero-001
+```
+
+명령은 `add_sprite`(기존 asset_id·name·position), `remove_entity`(id), `rename_entity`(id·name),
+`move_entity`(id·position), `undo`, `redo`, `save`입니다. 새 프로젝트 열기/생성·PNG 가져오기·임의 파일 쓰기는 지원하지 않습니다.
+변경 파일은 읽기만 하며 실제 편집/저장은 GUI가 소유한 EditorSession에서 직렬 실행합니다.
+요청 ID는 영숫자/-/_ 1~128자, timeout_ms는 1~10000입니다. 기한은 **서버 접수 뒤 대기 시간**이며
+네트워크 전체 왕복 시간이나 이미 시작한 저장의 강제 취소를 보장하지 않습니다.
+
+성공 응답 `data`는 session_id·request_id·state를 포함하는 receipt입니다.
+`queued`/`running`은 적용 성공이 아닙니다. `applied`는 revision·is_dirty·effect.entity_id(추가 외에는 null),
+`rejected`는 revision·error, `expired_before_apply`는 미적용 만료입니다.
+stdout의 `status: "ok"`/종료 0은 receipt를 받았다는 뜻이며 rejected도 포함할 수 있습니다.
+입력/전송/admission 오류는 기존처럼 `status: "error"`/종료 2입니다. 적용 여부는 반드시 state로 판정합니다.
+
+대기열 32개, 원장 1024개/세션으로 제한합니다. 원장은 항목을 퇴출하지 않고 꽉 차면 새 ID를 `ledger_full`로 거부합니다.
+기존 ID의 결과 조회와 동일 요청 재전송은 계속 가능하며 다른 payload 재사용은 `request_conflict`입니다.
+정상 접수한 요청의 busy/stale/명령·저장 실패/만료도 원장에 남고 문서 전체는 receipt에 복사하지 않습니다.
+인증·잘못된 형식·다른 세션·queue_full·ledger_full 등 접수 전 오류는 원장에 등록하지 않습니다.
+GUI는 실행 직전에 session/revision/busy/deadline을 다시 확인합니다. 사람 draft를 확정하거나 취소하지 않습니다.
+저장 실패는 문서·이력·기존 파일을 보존하며 undo/redo로 revision을 뒤로 돌리지 않습니다.
+
+응답을 잃었으면 같은 session/request ID로 result를 조회하거나 **동일 payload**만 재전송합니다.
+현재 세션의 `unknown_request`도 미적용 증거로 단정하지 않습니다. 새 ID로 blind retry하지 않습니다.
+프로젝트 교체·재시작은 새 session ID와 원장을 만들고 이전 queue를 버립니다. 이전 결과를 영속 보관하지 않습니다.
+
+## MCP stdio 사용
+
+[공식 Rust SDK rmcp](https://github.com/modelcontextprotocol/rust-sdk)의 stdio 서버를 사용합니다.
+MCP 클라이언트의 서버 설정에서 실행 파일을 `target/debug/engine-mcp`(Windows는 `.exe`),
+인자를 `--connection-file /사용자/외부경로/control.json`으로 지정합니다. 경로는 절대 경로여야 합니다.
+MCP 서버 프로세스 자체가 GUI를 열거나 연결 파일을 새로 만들지는 않습니다. 실행 중인 opt-in GUI가 필요합니다.
+버전 처리는 rmcp에 맡깁니다. 실제 stdio 회귀는 2025-11-25의 initialize/list/call,
+2024-11-05 초기화 호환, 2026-07-28의 요청 metadata 기반 no-initialize list/call을 확인합니다.
+SDK의 structured 응답 helper가 JSON과 텍스트 content를 함께 제공하며 별도 호환 계층은 만들지 않습니다.
+
+| 도구 | 입력 | 반환 |
+| --- | --- | --- |
+| `session_inspect` | 빈 객체 `{}` | 현재 확정 문서·session/revision·busy |
+| `session_mutate` | 위 MutationRequest와 같은 필드·typed command | queued/running/applied/rejected/expired receipt |
+| `session_result` | `session_id`, `request_id` | 같은 공통 원장의 receipt |
+
+먼저 inspect → 그 session/revision으로 mutate → result에서 terminal state 확인 순서로 사용합니다.
+MCP의 JSON-RPC id와 편집 중복 방지용 request_id는 별개입니다. transport 응답·도구 호출 성공은 편집 적용 완료가 아닙니다.
+`structuredContent`는 CLI와 같은 protocol_version/source/status/data 또는 error 계약을 담습니다.
+공통 client 오류는 MCP `isError: true`로 표시하고, 정상 조회한 rejected receipt는 data/state/error 그대로 전달합니다.
+알 수 없는 명령·누락 필드·잘못된 정수·추가 필드는 SDK typed 입력 단계에서 거부하며 임의 JSON을 명령으로 추측하지 않습니다.
+
+MCP는 control client를 직접 호출하고 CLI 출력 파싱·별도 문서/이력·프로젝트 직접 쓰기 경로를 만들지 않습니다.
+전송 실패/취소 뒤 이미 접수됐을 가능성이 있으면 동일 session/request ID 결과를 확인합니다. 자동 새 ID 재시도는 하지 않습니다.
+stdio stdout은 SDK wire 전용이며 비밀 token과 요청 원문을 진단 로그로 내보내지 않습니다.
+실제 SDK initialize/list/call process 검사, GUI↔CLI↔MCP 교차 적용·재조회·저장/재열기는 별도 검증 근거로 기록합니다.
 
 ## M2: 같은 편집 세션 사용
 
 도입 순서는 읽기 전용 디스크 검사/조회 → GUI live 조회 → 기존 편집·undo/redo·저장 CLI →
 [공식 Rust MCP SDK rmcp](https://github.com/modelcontextprotocol/rust-sdk)의 stdio 어댑터입니다.
 GUI 하나가 연 프로젝트 하나를 대상으로 하며 CLI·MCP가 별도 문서를 만들어 파일을 덮어쓰지 않습니다.
-후속 변경·MCP의 SDK와 세부 계약은 구현 때 검증합니다.
+세 도구는 공통 계약·control client를 재사용하며 추가 기능의 세부 계약은 구현 때 검증합니다.
 
 조회 결과에서 저장 파일인지 실행 중인 문서인지 구분합니다.
 입력·드래그·대화상자 중에도 읽기는 확정 문서·revision·busy 상태를 반환하고,

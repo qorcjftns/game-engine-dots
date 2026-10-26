@@ -372,6 +372,7 @@ impl EditorApp {
 impl eframe::App for EditorApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_native_close(context);
+        self.drain_agent_requests(context);
         self.publish_live(false);
     }
 

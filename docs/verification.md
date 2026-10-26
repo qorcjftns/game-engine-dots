@@ -231,3 +231,96 @@ opt-in 연결 표시와 연결 파일 존재·0600 권한, native Open으로 프
 후속 양 OS CI에서 transport 회귀는 통과했으며 GUI core 회귀의 fixture draft 동기화 누락이 확인됐습니다.
 테스트가 직접 명령을 적용한 뒤 실제 GUI commit 경로와 같이 draft를 동기화하도록 보완했습니다.
 미동기화 draft가 Undo 전에 추가 명령으로 확정되는 테스트 설정 문제이며 production 편집 규칙은 바꾸지 않았습니다.
+
+## M2 PR3: 같은 세션의 편집·이력·저장
+
+CLI의 `session mutate --connection-file FILE --request-file JSON`과 `session result`를 연결했습니다.
+GUI가 원본 세션을 계속 소유하며 추가/삭제·이름/위치·undo/redo·저장을 같은 명령 경로에서 실행합니다.
+session ID·예상 revision·busy를 수신 시점과 적용 직전에 검사하고 사람의 draft를 강제로 확정하지 않습니다.
+요청 ID별 원장은 같은 요청의 결과를 보존하고 다른 내용의 재사용을 거부합니다.
+대기 기한이 지난 요청은 적용하지 않으며 실행이 시작된 저장은 대기 기한으로 취소하지 않습니다.
+
+macOS ARM64에서 fmt, workspace Clippy(all targets, 경고 오류 처리), locked build,
+기존 CLI 5건·디스크 읽기 CLI 10건을 통과했습니다.
+`cargo test --locked --workspace -- --skip tcp_`는 non-TCP 58개와 doctest 1개가 통과했습니다.
+대기/원장 상한, 중복·다른 내용 충돌·같은 revision 경합·busy 재검사·만료·세션 교체·실패한 저장 보존을 포함합니다.
+실제 TCP 8개는 로컬 sandbox 제한 때문에 이 통과 수에 포함하지 않으며 두 OS CI에서 필수 실행합니다.
+
+추가 CI 명령 `python scripts/dev.py native-smoke`는 테스트 전용 example의 실제 eframe main-thread 창과
+Wgpu renderer를 띄워 별도 CLI 프로세스가 같은 세션을 조회·편집하도록 시도합니다.
+이후 같은 GUI action의 undo/redo·저장/재열기·정상 종료와 descriptor 정리를 확인하도록 작성했습니다.
+30초 watchdog 또는 graphics/session 실패는 실패로 처리하며 skip으로 통과시키지 않습니다.
+실행물과 orchestration은 컴파일/구문 검사 및 읽기 리뷰를 마쳤지만 실제 CI 실행은 아직 확인 전입니다.
+PNG는 renderer의 실제 frame 캡처이며 물리 마우스 입력·OS 전체 화면·DPI 검증과 구분합니다.
+artifact는 frame PNG·비밀값 없는 결과 JSON·host 로그만 포함하고 token 연결 파일·요청 파일은 제외합니다.
+
+native example용 dev-dependency는 이미 잠긴 image 0.25.10과 serde_json을 재사용했습니다.
+MCP stdio와 실제 SDK 연결은 다음 PR 범위입니다.
+
+첫 native CI는 양 OS에서 실제 창/renderer와 CLI 편집·GUI undo/redo·저장/재열기까지 진행했습니다.
+첫 frame PNG는 완전한 파일이었으나 두 번째 캡처가 생성 직후 0바이트일 때 orchestration이 읽어 실패했습니다.
+캡처를 명시적 PNG 형식의 임시 파일에 완성한 뒤 rename하여 게시하도록 보완했습니다.
+수정 후 전체 native 성공·정상 종료/정리는 새 CI 결과로 확인하며 첫 시도를 통과로 기록하지 않습니다.
+첫 renderer PNG는 Mac 1024×653·Windows 1024×768, 배율 100%에서 사람이 직접 확인했습니다.
+한글·dirty 표시·좌표(60,38)·PNG 리소스와 뷰포트의 실제 magenta 픽셀 위치가 일치했습니다.
+이는 CI의 첫 이동 frame 검토이며 Windows 실기기/DPI 전체 인수를 뜻하지 않습니다.
+
+PR3 수정 `506c239`의 [자동 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40254179598)는 양 OS 모두 통과했습니다.
+실제 TCP 회귀와 native eframe/renderer↔별도 CLI 편집, GUI action undo/redo·저장/재열기,
+정상 프로세스 종료·descriptor 삭제까지 script assertion과 `native-summary.json`의 passed 결과로 확인했습니다.
+사람이 최종 frame-6 PNG도 검토해 dirty 해제·저장 완료 상태, 좌표(60,38)와 실제 magenta 픽셀,
+PNG 리소스 유지 및 한글 UI의 잘림 없음을 확인했습니다. 종료/정리는 PNG만으로 판단하지 않았습니다.
+이 단계까지 실제 OS 최소화 상태와 MCP 교차는 미검증이므로 다음 PR에서 별도로 시도합니다.
+
+## M2 PR4: 공식 MCP stdio와 교차 검증
+
+공식 rmcp 3.7.0 SDK로 session_inspect·session_mutate·session_result를 제공하며
+CLI와 같은 control client·요청 원장을 사용합니다. stdout은 SDK wire만 출력하고
+조회/접수 응답과 편집 terminal state를 구분합니다.
+
+신규 SDK 의존성은 정상 CI의 Cargo가 생성하고 실제 컴파일한 lockfile을 반영했습니다.
+초기 bootstrap은 양 OS에서 SDK 포함 검사를 통과한 뒤 예상한 lockfile 변경 검사만 실패했습니다.
+공개 registry만 임시 checkout에 복원했으며 임시 bootstrap workflow 단계는 제거했습니다.
+
+macOS ARM64 offline/locked 통합 검사에서 non-TCP 64개와 doctest 1개,
+workspace rustfmt·Clippy(all targets, 경고 오류 처리), 전체/네이티브 example 빌드와 기존 CLI 15건이 통과했습니다.
+실제 SDK stdio 별도 프로세스의 initialize·tools/list·tools/call, stdout JSON 전용,
+typed 입력·구조화된 연결 오류와 추가 필드 거부를 포함합니다.
+검사 중 발견한 serde unit 명령의 추가 필드 무시 문제는 공통 strict wire Deserialize로 보완해
+CLI와 MCP 모두 같은 입력 규칙을 유지했습니다.
+
+실제 TCP 9개는 로컬 sandbox 때문에 이 통과 수에 포함하지 않으며 정상 양 OS CI에서 필수 실행합니다.
+`python scripts/dev.py native-mcp-smoke`는 실제 창의 OS 최소화 상태를 관측한 뒤
+공식 SDK 프로세스의 변경을 CLI에서 재조회하고 같은 receipt/replay를 확인하도록 작성했습니다.
+최소화 중 logic의 문서 변경을 관측하고 실제 restore 상태를 확인한 후
+같은 GUI undo/redo·저장/재열기·frame 캡처·정상 종료/descriptor 정리까지 검사합니다.
+OS 상태가 관측되지 않거나 30초를 넘으면 실패합니다. 실제 실행은 CI 결과로 별도 갱신합니다.
+이 test-only adapter의 GUI action 전달은 물리 마우스 입력 및 여러 DPI 인수와 구분합니다.
+
+마지막 SDK lifecycle 보강에서는 초기화 지원 최신 2025-11-25, 이전 2024-11-05의 협상과
+최신 2026-07-28의 초기화 없는 SDK list/call 경로를 각각 실제 stdio 프로세스로 통과했습니다.
+native 교차 클라이언트는 초기화를 지원하는 2025-11-25를 명시합니다.
+기존 통합 64개에 새 SDK 호환 2개를 더한 최종 로컬 non-TCP 검사 범위는 66개입니다.
+
+## M2 최종 통합 결과와 병합 상태
+
+구현 commit `015fa3b`의 [정상 CI](https://github.com/qorcjftns/game-engine-dots/actions/runs/40255432022)는
+macOS·Windows 모두 통과했습니다. Rust 테스트 75개(실제 TCP 9개 포함)와 doctest 1개,
+CLI 계약 15건, 포맷·Clippy·빌드·lockfile 불변 검사 및 실제 native GUI↔CLI↔공식 MCP 교차를 포함합니다.
+
+두 OS에서 CLI 이동 후 MCP 이름 변경을 같은 GUI에 적용하고 CLI 결과 조회·동일 ID replay를 확인했습니다.
+단순 최소화 요청이 아니라 실제 `viewport.minimized=true`를 기다린 뒤 변경했습니다.
+Mac은 UI frame 12, Windows는 frame 7이 그대로인 최소화 상태에서 revision 1→2와 새 이름을 관측했습니다.
+실제 복원 false를 확인한 뒤 같은 GUI action undo/redo는 revision 3/4를 만들었고,
+저장/재열기는 새 session ID·revision 0·clean 상태를 복원했습니다.
+정상 host 종료·연결 파일 삭제와 MCP 교차 결과는 script assertion·summary의 passed 기록으로 확인했습니다.
+
+사람이 양 OS 최종 frame-8 PNG를 직접 검토해 ‘MCP 공동 편집’ 이름·좌표(60,38), dirty 해제,
+PNG 리소스와 실제 magenta 픽셀, 한글 표시와 잘림 없음을 확인했습니다.
+이것은 정상 CI의 실제 native 창/renderer와 테스트 전용 GUI action 전달 검증입니다.
+물리 마우스 자동화·Windows 실기기·여러 DPI·macOS Dock Quit/강제 종료 보호를 완료한 것은 아닙니다.
+
+확인 시 원격 main은 `dd5a12bb`이고 PR #11~#14는 모두 OPEN입니다.
+M2는 구현 브랜치에서 검증된 상태이며 main에 병합된 것으로 기록하지 않습니다.
+PR #11은 main 대상 ready, #12→#13→#14는 선행 브랜치를 base로 한 Draft이며 병합/자동 병합을 수행하지 않았습니다.
+최종 README·설계·이 기록 정리는 문서만 변경하며 실행 코드·manifest·lock·CI는 검증한 `015fa3b`와 같습니다.

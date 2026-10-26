@@ -25,8 +25,8 @@ AI 후보는 비교·수동 보정·승인 후 새 버전으로 적용하며, pr
 전체 단계, 지원 범위와 최종 인수 조건은 [개발계획](docs/roadmap.md)을 기준으로 합니다.
 
 현재 M1은 프로젝트 생성·PNG 배치·선택·이름/위치·드래그·undo/redo·저장·재열기까지 연결했습니다.
-다음 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 단계입니다.
-공동 세션·새 runtime·행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전이며, 이 전체 계획에서 순서와 완료 기준을 정합니다.
+현재 M2는 같은 실행 중인 GUI 세션을 CLI·MCP로 함께 편집하는 구현과 통합 검증을 진행합니다.
+새 runtime·행동 코드·도트/대화형 에셋 제작·export는 아직 구현 전이며, 전체 계획에서 순서와 완료 기준을 정합니다.
 검증용 게임/장면은 엔진의 기능을 확인하기 위한 fixture입니다.
 
 GUI 패널과 글자는 OS의 DPI 배율을 따릅니다. 게임 뷰포트 안의 콘텐츠에만
@@ -39,8 +39,10 @@ crates/engine-core/     현재: 화면 배치·시간 계산
 crates/engine-document/ 현재: 프로젝트 문서·PNG 가져오기·편집 명령·저장·undo/redo
 crates/engine-desktop/  현재: Macroquad 출력 검증 데모
 crates/engine-editor/   현재: 프로젝트·PNG 배치·선택·속성·드래그·undo/redo GUI
-crates/engine-protocol/ 현재: CLI 공통 JSON 응답·문서/장면 조회 자료형
-crates/engine-cli/      현재: 설정·표시 영역·저장된 프로젝트/장면 JSON 조회
+crates/engine-protocol/ 현재: disk/live 조회·편집 요청·receipt·오류 JSON 계약
+crates/engine-control/  현재: live snapshot·로컬 TCP·변경 큐·원장·공통 client
+crates/engine-cli/      현재: 설정·표시 영역·disk/live 조회·live 편집/결과 확인
+crates/engine-mcp/      현재: 공식 rmcp 기반 stdio 도구 3개
 scripts/               공통 개발 명령
 docs/                  설계, 역할, 인터페이스, 검증 기록
 ```
@@ -81,6 +83,8 @@ Windows에서는 `python3` 대신 `py -3`을 사용합니다.
 | `project inspect FILE` | 저장된 프로젝트 JSON과 문서 모델 검사·조회 |
 | `scene inspect FILE` | 실제 개체 ID·그리기 순서·좌표·자산 참조 조회 |
 | `session inspect --connection-file FILE` | 실행 중인 GUI의 확정 문서·revision·busy 조회 |
+| `session mutate --connection-file FILE --request-file JSON` | 같은 GUI 세션에 기존 편집 명령 접수 |
+| `session result --connection-file FILE --session-id ID --request-id ID` | 접수한 요청의 적용/거부/만료 확인 |
 | `build` | 현재 운영체제용 릴리스 실행 파일 생성 |
 
 예: `python3 scripts/dev.py info`. 릴리스 결과는 `target/release/`에 생성됩니다.
@@ -92,6 +96,9 @@ Rust 도구를 전역으로 설치한 경우 `cargo fmt --all`, `cargo test --wo
 에디터의 live 조회는 기본 비활성입니다. 사용자 전용 프로젝트 외부 경로로
 `target/debug/engine-editor --agent-control --connection-file /사용자/경로/editor-connection.json`을 실행한 뒤
 `target/debug/engine-cli session inspect --connection-file /사용자/경로/editor-connection.json`으로 조회합니다.
+변경 접수 응답의 queued/running은 적용 성공이 아니므로 result로 결과를 확인합니다.
+MCP 클라이언트에는 `target/debug/engine-mcp --connection-file /사용자/외부경로/editor-connection.json`을
+stdio 서버로 등록합니다. 제공 도구는 session_inspect·session_mutate·session_result이며 같은 GUI 통로를 사용합니다.
 연결 파일은 비밀 token을 포함하므로 공유하거나 저장소에 넣지 않습니다. 상세 제한은 [접근 규약](docs/agent-interface.md)을 따릅니다.
 
 ## 코드 위치
@@ -101,8 +108,10 @@ crates/engine-core/     창 없이 쓸 수 있는 화면 배치·시간 계산
 crates/engine-document/ GUI에 독립적인 프로젝트 문서·편집 명령·파일 처리
 crates/engine-desktop/  Macroquad를 통한 창·입력·픽셀 화면 데모
 crates/engine-editor/   GUI 편집 화면·입력·파일 대화상자·미저장 확인
-crates/engine-protocol/ GUI에 독립적인 JSON 응답·문서/장면 조회 자료형
-crates/engine-cli/      에이전트용 JSON 명령
+crates/engine-protocol/ GUI에 독립적인 조회·편집·결과·오류 자료형
+crates/engine-control/  게시 상태·인증 통신·큐·중복 방지 원장·공통 client
+crates/engine-cli/      저장 파일/live 세션 조회·편집·결과 확인 JSON 명령
+crates/engine-mcp/      control client를 재사용하는 공식 SDK stdio 어댑터
 scripts/               두 운영체제에서 공통으로 쓰는 개발 명령
 docs/                  설계, 인터페이스, 검증 기록
 ```
@@ -120,9 +129,10 @@ workspace 빌드·CLI 계약 5개를 확인했습니다. 최종 편집 소스의
 실제 macOS/Retina 200%에서 PNG 배치·한글 개체 이름·좌표 수정·드래그·undo/redo·저장·재열기와
 Cmd+Q의 저장·취소와 창 닫기의 변경 버리기를 확인했습니다. 상세 근거는 [검증 기록](docs/verification.md)에 있습니다.
 GUI에 프로젝트 생성·열기, PNG 가져오기와 장면 배치, 개체 선택·속성·드래그·undo/redo와 저장·재열기를 연결했습니다.
-Windows의 실제 GUI 실행과 DPI별 화면은 아직 확인하지 않았습니다.
-CLI는 설정·표시 영역과 저장된 프로젝트/장면을 읽기 전용으로 조회합니다.
-문서 편집 명령·실행 중 GUI 연결·MCP 서버는 아직 구현 전입니다.
+Windows 실기기와 여러 DPI에서의 검증은 아직 확인하지 않았습니다. 두 OS의 CI native 교차 검사는 검증 기록을 참고하세요.
+CLI는 설정·표시 영역·저장된 프로젝트/장면과 실행 중 GUI 세션을 조회합니다.
+공통 편집·이력·저장 요청과 공식 SDK MCP stdio 어댑터를 연결했습니다.
+M2의 소스 구현·실제 TCP·native GUI·MCP 교차 검증 상태는 검증 기록에서 구분합니다.
 
 예: `python3 scripts/dev.py scene inspect "내 프로젝트/project.json"`.
 새 조회 응답은 `protocol_version: 1`, `source: "disk"`, `status: "ok"`와 `data`를 포함합니다.
