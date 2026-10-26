@@ -44,13 +44,15 @@ mod tests {
 
     fn document(x: i32, y: i32) -> ProjectDocument {
         ProjectDocument {
-            schema_version: 1,
+            behaviors: vec![],
+            schema_version: 2,
             name: "렌더링 검사".into(),
             logical_width: 2,
             logical_height: 2,
             assets: Vec::new(),
             scene: Scene {
                 entities: vec![SpriteEntity {
+                    behavior_id: None,
                     id: EntityId(1),
                     asset_id: AssetId(1),
                     name: "픽셀".into(),

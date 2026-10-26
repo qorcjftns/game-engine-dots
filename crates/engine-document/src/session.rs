@@ -5,14 +5,30 @@ use std::{
 };
 
 use crate::{
-    AssetId, DocumentError, EntityId, PngAsset, PngPixels, Position, ProjectDocument, Result,
-    SpriteEntity, assets::read_png, invalid, storage,
+    AssetId, BehaviorId, BehaviorResource, DocumentError, EntityId, PngAsset, PngPixels, Position,
+    ProjectDocument, Result, SpriteEntity, assets::read_png, invalid, storage,
 };
 
 const HISTORY_LIMIT: usize = 128;
 
 #[derive(Debug, Clone)]
 pub enum EditCommand {
+    AddBehavior {
+        file: String,
+        source: String,
+    },
+    UpdateBehavior {
+        id: BehaviorId,
+        file: String,
+        source: String,
+    },
+    RemoveBehavior {
+        id: BehaviorId,
+    },
+    BindBehavior {
+        id: EntityId,
+        behavior_id: Option<BehaviorId>,
+    },
     AddSprite {
         asset_id: AssetId,
         name: String,
@@ -34,6 +50,7 @@ pub enum EditCommand {
 #[derive(Debug, Clone, Copy)]
 pub struct CommandResult {
     pub entity_id: Option<EntityId>,
+    pub behavior_id: Option<BehaviorId>,
 }
 
 /// 문서를 수정하는 공통 경로입니다. 선택·드래그 미리보기는 GUI가 보관합니다.
@@ -45,6 +62,7 @@ pub struct EditorSession {
     saved_bytes: Vec<u8>,
     undo: Vec<ProjectDocument>,
     redo: Vec<ProjectDocument>,
+    next_behavior_id: Option<u64>,
     next_entity_id: Option<u64>,
     next_asset_id: Option<u64>,
 }
@@ -86,7 +104,15 @@ impl EditorSession {
             .max()
             .unwrap_or(0)
             .checked_add(1);
+        let next_behavior_id = document
+            .behaviors
+            .iter()
+            .map(|b| b.id.0)
+            .max()
+            .unwrap_or(0)
+            .checked_add(1);
         Self {
+            next_behavior_id,
             project_file,
             saved_document: document.clone(),
             document,
@@ -128,7 +154,47 @@ impl EditorSession {
 
     pub fn execute(&mut self, command: EditCommand) -> Result<CommandResult> {
         let mut document = self.document.clone();
+        let mut behavior_id = None;
         let id = match command {
+            EditCommand::AddBehavior { file, source } => {
+                let id = BehaviorId(
+                    self.next_behavior_id
+                        .ok_or_else(|| invalid("행동 ID 소진"))?,
+                );
+                document
+                    .behaviors
+                    .push(BehaviorResource { id, file, source });
+                behavior_id = Some(id);
+                None
+            }
+            EditCommand::UpdateBehavior { id, file, source } => {
+                let behavior = document
+                    .behaviors
+                    .iter_mut()
+                    .find(|b| b.id == id)
+                    .ok_or_else(|| invalid("행동 리소스를 찾을 수 없습니다."))?;
+                *behavior = BehaviorResource { id, file, source };
+                behavior_id = Some(id);
+                None
+            }
+            EditCommand::RemoveBehavior { id } => {
+                let index = document
+                    .behaviors
+                    .iter()
+                    .position(|b| b.id == id)
+                    .ok_or_else(|| invalid("행동 리소스를 찾을 수 없습니다."))?;
+                document.behaviors.remove(index);
+                // 연결된 리소스 삭제는 validate에서 거부합니다. 먼저 연결을 해제하세요.
+                behavior_id = Some(id);
+                None
+            }
+            EditCommand::BindBehavior {
+                id,
+                behavior_id: binding,
+            } => {
+                entity_mut(&mut document, id)?.behavior_id = binding;
+                Some(id)
+            }
             EditCommand::AddSprite {
                 asset_id,
                 name,
@@ -139,20 +205,21 @@ impl EditorSession {
                         .ok_or_else(|| invalid("개체 ID가 소진되었습니다."))?,
                 );
                 document.scene.entities.push(SpriteEntity {
+                    behavior_id: None,
                     id,
                     asset_id,
                     name,
                     position,
                 });
-                id
+                Some(id)
             }
             EditCommand::RenameEntity { id, name } => {
                 entity_mut(&mut document, id)?.name = name;
-                id
+                Some(id)
             }
             EditCommand::MoveEntity { id, position } => {
                 entity_mut(&mut document, id)?.position = position;
-                id
+                Some(id)
             }
             EditCommand::RemoveEntity { id } => {
                 let index = document
@@ -162,16 +229,21 @@ impl EditorSession {
                     .position(|entity| entity.id == id)
                     .ok_or_else(|| invalid("개체를 찾을 수 없습니다."))?;
                 document.scene.entities.remove(index);
-                id
+                Some(id)
             }
         };
         let added = document.scene.entities.len() > self.document.scene.entities.len();
+        let added_behavior = document.behaviors.len() > self.document.behaviors.len();
         self.commit(document)?;
+        if added_behavior {
+            self.next_behavior_id = behavior_id.unwrap().0.checked_add(1);
+        }
         if added {
-            self.next_entity_id = id.0.checked_add(1);
+            self.next_entity_id = id.unwrap().0.checked_add(1);
         }
         Ok(CommandResult {
-            entity_id: Some(id),
+            entity_id: id,
+            behavior_id,
         })
     }
 

@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+rhai = { version = "=1.27.0", features = ["sync", "no_module", "no_time", "no_float", "no_object", "no_index"] }
 engine-document.workspace = true
 serde = { version = "1", features = ["derive"] }
 
