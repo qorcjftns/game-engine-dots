@@ -65,7 +65,7 @@ impl GameView {
             && !ui.ctx().text_edit_focused()
             && ui.input(|i| i.focused);
         if enabled {
-            let mut pointer = ui
+            let final_pointer = ui
                 .input(|i| i.pointer.hover_pos())
                 .filter(|p| rect.contains(*p))
                 .map(|p| {
@@ -74,6 +74,7 @@ impl GameView {
                         ((p.y - rect.min.y) * ppp / camera.scale as f32).floor() as i32,
                     ]
                 });
+            let mut pointer = final_pointer;
             for event in ui.input(|i| i.events.clone()) {
                 match event {
                     egui::Event::Key { key, pressed, .. } => {
@@ -101,7 +102,7 @@ impl GameView {
                 }
                 run.set_input(self.actions(pointer));
             }
-            run.set_input(self.actions(pointer));
+            run.set_input(self.actions(final_pointer));
         } else {
             self.keys.clear();
             self.mouse = false;
