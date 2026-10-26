@@ -3,6 +3,54 @@ use crate::app::EditorApp;
 use eframe::egui;
 use engine_runtime::{PlaySession, RuntimeWorld};
 impl EditorApp {
+    pub(crate) fn apply_runtime_command(
+        &mut self,
+        context: &egui::Context,
+        command: &engine_protocol::MutationCommand,
+    ) -> Result<engine_protocol::MutationEffect, engine_protocol::ApiError> {
+        use engine_protocol::{ApiError, ErrorCode, MutationCommand as C};
+        let invalid = |message| ApiError::new(ErrorCode::InvalidRunState, message);
+        if self.editor_busy(context) {
+            return Err(ApiError::new(
+                ErrorCode::EditorBusy,
+                "대화상자와 입력을 마친 뒤 요청하세요.",
+            ));
+        }
+        if matches!(command, C::RunStart) {
+            self.start_play(context).map_err(invalid)?;
+            return Ok(Default::default());
+        }
+        let requested = match command {
+            C::RunPause { run_id, .. } | C::RunStep { run_id, .. } | C::RunStop { run_id } => {
+                *run_id
+            }
+            _ => return Err(invalid("실행 명령이 아닙니다.".into())),
+        };
+        let run = self
+            .play
+            .as_mut()
+            .ok_or_else(|| ApiError::new(ErrorCode::RunMismatch, "현재 실행 세션이 없습니다."))?;
+        if run.status().run_id != requested {
+            return Err(ApiError::new(
+                ErrorCode::RunMismatch,
+                "이전 실행 세션의 요청입니다.",
+            ));
+        }
+        match command {
+            C::RunPause { paused, .. } => run.pause(*paused),
+            C::RunStep { ticks, input, .. } => {
+                if !run.status().paused || !(1..=100000).contains(ticks) {
+                    return Err(invalid("Pause 상태에서 1~100000 tick을 지정하세요.".into()));
+                }
+                run.set_input(*input);
+                run.step(*ticks).map_err(|e| invalid(e.into()))?;
+            }
+            C::RunStop { .. } => self.stop_play(),
+            _ => unreachable!(),
+        }
+        Ok(Default::default())
+    }
+
     pub(crate) fn start_play(&mut self, context: &egui::Context) -> Result<(), String> {
         if self.play.is_some() {
             return Err("이미 실행 중입니다.".into());

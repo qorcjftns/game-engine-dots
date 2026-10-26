@@ -62,6 +62,7 @@ impl SessionTracker {
             session_id: self.session_id.clone(),
             revision: self.revision,
             busy,
+            runtime: None,
             is_dirty: session.is_some_and(EditorSession::is_dirty),
             can_undo: session.is_some_and(EditorSession::can_undo),
             can_redo: session.is_some_and(EditorSession::can_redo),

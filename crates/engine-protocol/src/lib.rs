@@ -72,6 +72,8 @@ pub struct LiveInspection {
     pub session_id: String,
     pub revision: u64,
     pub busy: bool,
+    #[serde(default)]
+    pub runtime: Option<engine_runtime::RunStatus>,
     pub is_dirty: bool,
     pub can_undo: bool,
     pub can_redo: bool,
@@ -106,6 +108,8 @@ pub enum ErrorCode {
     MutationsDisabled,
     NoProject,
     CommandFailed,
+    RunMismatch,
+    InvalidRunState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,6 +215,19 @@ pub enum MutationCommand {
     Undo,
     Redo,
     Save,
+    RunStart,
+    RunPause {
+        run_id: u64,
+        paused: bool,
+    },
+    RunStep {
+        run_id: u64,
+        ticks: u32,
+        input: engine_runtime::ActionInput,
+    },
+    RunStop {
+        run_id: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -277,6 +294,19 @@ enum StrictMutationCommand {
     Undo {},
     Redo {},
     Save {},
+    RunStart {},
+    RunPause {
+        run_id: u64,
+        paused: bool,
+    },
+    RunStep {
+        run_id: u64,
+        ticks: u32,
+        input: engine_runtime::ActionInput,
+    },
+    RunStop {
+        run_id: u64,
+    },
 }
 impl From<StrictMutationCommand> for MutationCommand {
     fn from(value: StrictMutationCommand) -> Self {
@@ -296,6 +326,18 @@ impl From<StrictMutationCommand> for MutationCommand {
             StrictMutationCommand::Undo {} => Self::Undo,
             StrictMutationCommand::Redo {} => Self::Redo,
             StrictMutationCommand::Save {} => Self::Save,
+            StrictMutationCommand::RunStart {} => Self::RunStart,
+            StrictMutationCommand::RunPause { run_id, paused } => Self::RunPause { run_id, paused },
+            StrictMutationCommand::RunStep {
+                run_id,
+                ticks,
+                input,
+            } => Self::RunStep {
+                run_id,
+                ticks,
+                input,
+            },
+            StrictMutationCommand::RunStop { run_id } => Self::RunStop { run_id },
         }
     }
 }

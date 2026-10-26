@@ -1011,7 +1011,9 @@ name = "engine-host"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "engine-document",
  "engine-runtime",
+ "tempfile",
 ]
 
 [[package]]
@@ -1021,6 +1023,7 @@ dependencies = [
  "engine-control",
  "engine-document",
  "engine-protocol",
+ "engine-runtime",
  "rmcp",
  "schemars",
  "serde",
@@ -1045,6 +1048,7 @@ name = "engine-protocol"
 version = "0.1.0"
 dependencies = [
  "engine-document",
+ "engine-runtime",
  "serde",
  "serde_json",
 ]

@@ -44,8 +44,10 @@ impl LiveControl {
         generation: u64,
         session: Option<&EditorSession>,
         busy: bool,
+        runtime: Option<engine_runtime::RunStatus>,
     ) -> engine_control::Result<LiveInspection> {
-        let snapshot = self.tracker.observe(generation, session, busy)?;
+        let mut snapshot = self.tracker.observe(generation, session, busy)?;
+        snapshot.runtime = runtime;
         self.publisher.publish(snapshot.clone())?;
         Ok(snapshot)
     }
@@ -134,6 +136,7 @@ impl EditorApp {
             self.workspace.generation,
             self.workspace.session.as_ref(),
             busy,
+            self.play.as_ref().map(|run| run.status().clone()),
         );
         match result {
             Ok(snapshot) => Some(snapshot),

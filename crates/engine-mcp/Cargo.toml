@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 engine-control.workspace = true
 engine-protocol.workspace = true
+engine-runtime.workspace = true
 engine-document.workspace = true
 rmcp = { version = "=3.7.0", default-features = false, features = ["server", "macros", "schemars", "transport-io"] }
 serde = { version = "1", features = ["derive"] }
