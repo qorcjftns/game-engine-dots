@@ -1,0 +1,17 @@
+[package]
+name = "engine-mcp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine-control.workspace = true
+engine-protocol.workspace = true
+engine-document.workspace = true
+rmcp = { version = "=3.7.0", default-features = false, features = ["server", "macros", "schemars", "transport-io"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+
+[dev-dependencies]
+tempfile = "3"
