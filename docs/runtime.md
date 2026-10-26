@@ -52,3 +52,47 @@ Rhai/Wasm 등 외부 언어 backend의 통합/중단 가능성은 아직 검증�
 
 정상 창 닫기·Cmd+Q의 dirty 취소 보존은 기존 보호 경로를 사용한다. Dock Quit와 강제 종료의 미저장 복구는 아직 지원하지 않는다.
 강제 중단 뒤 복구 가능한 지점은 마지막 성공 저장이며 M3가 checkpoint나 마지막 입력 복구를 추가하지 않는다.
+
+## M4 행동 실행 기반
+
+행동은 프로젝트 JSON v2의 `behaviors: [{id, file, source}]`에 저장하며 개체의 nullable `behavior_id`로 연결합니다.
+`file`은 오류에 표시할 `이동.rhai` 같은 논리 이름입니다. 외부 파일을 자동 실행하거나 실시간 재로딩하지 않습니다.
+v1은 열 때 행동 없는 v2로 메모리에서 변환합니다. 열기만 하면 파일과 dirty는 바뀌지 않고 다음 저장에서 v2를 씁니다.
+행동 추가/수정/삭제/연결은 `EditCommand`를 거쳐 원자 검증·undo/redo·기존 저장 보호를 공유합니다.
+연결된 행동 삭제는 거부하므로 먼저 연결을 해제해야 합니다. 문법 오류가 있는 작업 중 소스도 저장할 수 있습니다.
+
+Rhai 1.27.0을 고정합니다. 비교 실험에서 Wasm은 별도 컴파일/ABI가 필요하고 toy DSL은 표현력과 진단 비용이 커졌습니다.
+Rhai 1.23.4에서는 map 인덱스 대입의 크기 제한과 산술 오류 위치 문제가 관찰됐습니다.
+1.27.0의 실제 실험에서 나눗셈/overflow/중첩 함수 소스 위치, 연산/재귀/문자열 제한을 확인했습니다.
+컬렉션은 M4 API에 필요 없어 `no_object`·`no_index`로 제거했습니다. module/time/float도 제거하며 `eval`을 금지합니다.
+파일·네트워크·프로세스 API는 등록하지 않습니다. 이것은 엔진이 제공하는 제한 실행 경계이며 OS process sandbox가 아닙니다.
+
+매 60Hz tick에 연결된 소스를 장면 순서대로 실행합니다. 새 scope의 `x`, `y`는 개체의 정수 위치,
+`state`는 실행 중만 유지하는 i64 한 개(초기 0)입니다. 나머지 지역변수는 tick 뒤 사라집니다.
+읽기 전용 `tick`(1부터), `left/right/up/down/primary`, `primary_pressed/primary_released`,
+`pointer_x/pointer_y`(없으면 -1)를 읽을 수 있습니다. 좌표는 논리 픽셀입니다.
+
+```rhai
+if right { x += 2; }
+if left { x -= 2; }
+if down { y += 2; }
+if up { y -= 2; }
+state += 1;
+if primary_pressed { log("primary pressed"); }
+```
+
+`log(string)`은 file/line/entity/tick을 남깁니다. print/debug는 외부 출력에 쓰지 않습니다.
+모든 연결의 결과와 로그를 임시로 모아 성공할 때만 전체 tick을 반영합니다.
+문법 오류는 Play 시작을 거부하고 기존 편집 문서를 보존합니다. 실행 오류는 해당 tick의 모든 위치/state/log를 취소하고 pause합니다.
+이미 완료된 이전 tick은 유지합니다. `runtime.error`의 file/line/column/entity/tick/message로 진단하고 Stop→편집→Play로 재시작합니다.
+중첩 함수 오류는 내부 오류의 소스 위치를 사용합니다. 최종 x/y/state 출력 타입·범위 검증 오류는 파일 1행의 출력 계약 오류로 표시합니다.
+실행 결과는 원본 문서·dirty·이력·파일에 반영하지 않습니다. editor와 player는 같은 실행기를 사용합니다.
+
+상한은 소스 하나 8 KiB, 리소스32개(소스 합계256 KiB), 연결64개, 컴파일 AST64개입니다.
+각 실행 연산2000/전체 tick8000, 호출 깊이8, 식 깊이32(함수16), 변수32, 함수16, 문자열256바이트로 제한합니다.
+배열/map을 없애고 변수·호출·소스·연산 수를 함께 제한해 개별 문자열 외의 누적 자료도 제한합니다.
+이는 byte 단위 프로세스 RSS 할당량을 의미하지 않습니다. scope는 tick마다 폐기하고 persistent 상태는 연결당 정수 하나뿐입니다.
+로그는 전체 tick16개·문자열256바이트, 최근64개만 보관합니다. 초과하면 해당 tick이 실패합니다.
+행동이 연결된 실행의 명시 step은 최대120 tick, 연결 없는 실행은 기존100000 tick입니다.
+성공 시 요청한 tick을 모두 실행하고 실패 시 원인 tick 직전에 멈춥니다. 이 제한은 실시간 8 tick 따라잡기 제한과 별개입니다.
+위치 변화는 visual revision을 올려 공통 호스트 texture를 갱신합니다. hash는 step/실시간 batch 끝의 공통 RGBA로 계산합니다.

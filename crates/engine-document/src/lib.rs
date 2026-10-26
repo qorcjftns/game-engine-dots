@@ -24,7 +24,10 @@ mod session;
 mod storage;
 
 pub use assets::PngPixels;
-pub use model::{AssetId, EntityId, PngAsset, Position, ProjectDocument, Scene, SpriteEntity};
+pub use model::{
+    AssetId, BehaviorId, BehaviorResource, EntityId, MAX_BEHAVIOR_SOURCE_BYTES, PngAsset, Position,
+    ProjectDocument, Scene, SpriteEntity,
+};
 pub use session::{CommandResult, EditCommand, EditorSession};
 
 pub type Result<T> = std::result::Result<T, DocumentError>;

@@ -1,3 +1,5 @@
+mod behavior;
+pub use behavior::{BehaviorDiagnostic, BehaviorLog, BehaviorState, validate_behaviors};
 mod play;
 pub use play::{ActionInput, PlaySession, RunStatus, pixel_hash};
 // GUI나 편집 이력을 소유하지 않는 실행 snapshot과 공통 논리 픽셀 출력.
@@ -10,6 +12,8 @@ use std::collections::HashMap;
 pub struct RuntimeWorld {
     document: ProjectDocument,
     assets: HashMap<AssetId, PngPixels>,
+    behaviors: behavior::Behaviors,
+    visual_revision: u64,
 }
 impl RuntimeWorld {
     pub fn snapshot(session: &EditorSession) -> engine_document::Result<Self> {
@@ -27,13 +31,45 @@ impl RuntimeWorld {
         for asset in &session.document().assets {
             assets.insert(asset.id, session.read_png_asset(asset.id)?);
         }
+        let behaviors = behavior::Behaviors::compile(session.document()).map_err(|error| {
+            engine_document::DocumentError::InvalidDocument(format!(
+                "{}:{}:{} 개체 {:?}: {}",
+                error.file, error.line, error.column, error.entity_id, error.message
+            ))
+        })?;
         Ok(Self {
+            behaviors,
+            visual_revision: 0,
             document: session.document().clone(),
             assets,
         })
     }
     pub fn document(&self) -> &ProjectDocument {
         &self.document
+    }
+    pub fn visual_revision(&self) -> u64 {
+        self.visual_revision
+    }
+    pub(crate) fn has_behaviors(&self) -> bool {
+        self.behaviors.has_bindings()
+    }
+    pub(crate) fn behavior_states(&self) -> Vec<BehaviorState> {
+        self.behaviors.states(&self.document)
+    }
+    pub(crate) fn tick_behaviors(
+        &mut self,
+        tick: u64,
+        input: ActionInput,
+        pressed: ActionInput,
+        released: ActionInput,
+    ) -> Result<Vec<BehaviorLog>, BehaviorDiagnostic> {
+        let (changed, logs) =
+            self.behaviors
+                .tick(&mut self.document, tick, input, pressed, released)?;
+        if changed {
+            self.visual_revision = self.visual_revision.saturating_add(1);
+        }
+        Ok(logs)
     }
     pub fn render(&self) -> Vec<u8> {
         render_scene(&self.document, |id| self.assets.get(&id))

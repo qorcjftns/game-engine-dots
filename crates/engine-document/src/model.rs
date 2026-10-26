@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Result, invalid};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 pub const MAX_IMAGE_SIZE: u32 = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -14,6 +14,23 @@ pub struct EntityId(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AssetId(pub u64);
+
+pub const MAX_BEHAVIORS: usize = 32;
+pub const MAX_BEHAVIOR_SOURCE_BYTES: usize = 8192;
+pub const MAX_BEHAVIOR_BINDINGS: usize = 64;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct BehaviorId(pub u64);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BehaviorResource {
+    pub id: BehaviorId,
+    /// 프로젝트 JSON 안의 소스에 붙이는 논리 파일 이름. 외부 IO 경로가 아닙니다.
+    pub file: String,
+    pub source: String,
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -35,6 +52,8 @@ pub struct PngAsset {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpriteEntity {
+    #[serde(default)]
+    pub behavior_id: Option<BehaviorId>,
     pub id: EntityId,
     pub asset_id: AssetId,
     pub name: String,
@@ -51,6 +70,8 @@ pub struct Scene {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectDocument {
+    #[serde(default)]
+    pub behaviors: Vec<BehaviorResource>,
     pub schema_version: u32,
     pub name: String,
     pub logical_width: u32,
@@ -63,6 +84,7 @@ impl ProjectDocument {
     pub(crate) fn new(name: &str, width: u32, height: u32) -> Result<Self> {
         let document = Self {
             schema_version: SCHEMA_VERSION,
+            behaviors: Vec::new(),
             name: name.to_owned(),
             logical_width: width,
             logical_height: height,
@@ -94,6 +116,40 @@ impl ProjectDocument {
             validate_dimensions(asset.width, asset.height)?;
         }
 
+        if self.behaviors.len() > MAX_BEHAVIORS {
+            return Err(invalid("행동 리소스는 최대 32개입니다."));
+        }
+        let mut behaviors = HashSet::new();
+        let mut files = HashSet::new();
+        for behavior in &self.behaviors {
+            if behavior.id.0 == 0 || !behaviors.insert(behavior.id) {
+                return Err(invalid("행동 ID는 0이 아니며 중복할 수 없습니다."));
+            }
+            if behavior.file.len() > 120
+                || !behavior.file.ends_with(".rhai")
+                || behavior.file.contains(['/', '\\', ':'])
+                || behavior.file.chars().any(char::is_control)
+                || behavior.file.trim().len() <= 5
+                || !files.insert(&behavior.file)
+            {
+                return Err(invalid(
+                    "행동 파일 이름은 중복 없는 120바이트 이하 이름.rhai이어야 합니다.",
+                ));
+            }
+            if behavior.source.len() > MAX_BEHAVIOR_SOURCE_BYTES {
+                return Err(invalid("행동 소스는 8192바이트 이하여야 합니다."));
+            }
+        }
+        if self
+            .scene
+            .entities
+            .iter()
+            .filter(|e| e.behavior_id.is_some())
+            .count()
+            > MAX_BEHAVIOR_BINDINGS
+        {
+            return Err(invalid("행동을 연결한 개체는 최대 64개입니다."));
+        }
         let mut entities = HashSet::new();
         for entity in &self.scene.entities {
             if entity.id.0 == 0 || !entities.insert(entity.id) {
@@ -103,6 +159,12 @@ impl ProjectDocument {
                 return Err(invalid("개체가 문서에 없는 리소스를 참조합니다."));
             }
             validate_name(&entity.name)?;
+            if entity
+                .behavior_id
+                .is_some_and(|id| !behaviors.contains(&id))
+            {
+                return Err(invalid("개체가 없는 행동 리소스를 참조합니다."));
+            }
         }
         Ok(())
     }

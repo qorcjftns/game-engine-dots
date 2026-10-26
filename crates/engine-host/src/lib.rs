@@ -5,6 +5,7 @@ use engine_runtime::{ActionInput, CameraViewport, PlaySession};
 pub struct GameView {
     texture: Option<egui::TextureHandle>,
     run_id: Option<u64>,
+    visual_revision: u64,
     focused: bool,
     viewport: Option<[u32; 4]>,
     keys: std::collections::HashSet<egui::Key>,
@@ -22,7 +23,9 @@ impl GameView {
     pub fn show(&mut self, ui: &mut egui::Ui, run: &mut PlaySession, allow_input: bool) {
         let doc = run.world.document();
         let (width, height) = (doc.logical_width, doc.logical_height);
-        if self.run_id != Some(run.status().run_id) {
+        if self.run_id != Some(run.status().run_id)
+            || self.visual_revision != run.world.visual_revision()
+        {
             self.texture = Some(ui.ctx().load_texture(
                 "runtime-screen",
                 egui::ColorImage::from_rgba_unmultiplied(
@@ -31,8 +34,11 @@ impl GameView {
                 ),
                 egui::TextureOptions::NEAREST,
             ));
+            if self.run_id != Some(run.status().run_id) {
+                self.focused = false;
+            }
             self.run_id = Some(run.status().run_id);
-            self.focused = false;
+            self.visual_revision = run.world.visual_revision();
         }
         let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click());
         painter.rect_filled(response.rect, 0.0, Color32::from_rgb(17, 20, 26));

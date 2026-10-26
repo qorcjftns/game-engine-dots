@@ -22,6 +22,9 @@ pub struct RunStatus {
     pub pressed: ActionInput,
     pub released: ActionInput,
     pub frame_hash: String,
+    pub error: Option<crate::BehaviorDiagnostic>,
+    pub logs: Vec<crate::BehaviorLog>,
+    pub entities: Vec<crate::BehaviorState>,
 }
 pub struct PlaySession {
     pub world: RuntimeWorld,
@@ -51,6 +54,7 @@ fn merge(a: &mut ActionInput, b: ActionInput) {
 impl PlaySession {
     pub fn new(world: RuntimeWorld, run_id: u64) -> Self {
         let frame_hash = pixel_hash(&world.render());
+        let entities = world.behavior_states();
         Self {
             world,
             status: RunStatus {
@@ -62,6 +66,9 @@ impl PlaySession {
                 pressed: ActionInput::default(),
                 released: ActionInput::default(),
                 frame_hash,
+                error: None,
+                logs: Vec::new(),
+                entities,
             },
             pending: ActionInput::default(),
             pressed: ActionInput::default(),
@@ -81,7 +88,7 @@ impl PlaySession {
         self.set_input(ActionInput::default());
     }
     pub fn pause(&mut self, paused: bool) {
-        self.status.paused = paused;
+        self.status.paused = paused || self.status.error.is_some();
         self.remaining = 0.0;
         self.pending = ActionInput::default();
         self.pressed = ActionInput::default();
@@ -92,12 +99,27 @@ impl PlaySession {
         if !self.status.paused || !(1..=100_000).contains(&count) {
             return Err("Pause 상태에서 1~100000 tick을 지정하세요.");
         }
+        if self.status.error.is_some() {
+            return Err("행동 오류가 있습니다. Stop 후 다시 Play하세요.");
+        }
+        if self.world.has_behaviors() && count > 120 {
+            return Err("행동 실행의 명시 step은 최대 120 tick입니다.");
+        }
+        if self.status.tick.checked_add(u64::from(count)).is_none() {
+            return Err("tick 범위를 초과했습니다.");
+        }
         self.pending = input;
         self.pressed = edges(input, self.status.input);
         self.released = edges(self.status.input, input);
         self.step(count)
     }
     pub fn step(&mut self, count: u32) -> Result<(), &'static str> {
+        if self.status.error.is_some() {
+            return Err("행동 오류가 있습니다. Stop 후 소스를 수정하고 다시 Play하세요.");
+        }
+        if self.world.has_behaviors() && count > 120 {
+            return Err("행동 실행의 명시 step은 최대 120 tick입니다.");
+        }
         if !self.status.paused {
             return Err("step에는 pause가 필요합니다.");
         }
@@ -107,16 +129,48 @@ impl PlaySession {
         if self.status.tick.checked_add(u64::from(count)).is_none() {
             return Err("tick 범위를 초과했습니다.");
         }
+        let revision = self.world.visual_revision();
         for _ in 0..count {
-            self.tick();
+            if !self.tick() {
+                self.refresh_frame(revision);
+                return Err("행동 실행 오류로 중단했습니다. runtime.error를 확인하세요.");
+            }
         }
+        self.refresh_frame(revision);
         Ok(())
     }
-    fn tick(&mut self) {
-        self.status.tick += 1;
+    fn refresh_frame(&mut self, revision: u64) {
+        if revision != self.world.visual_revision() {
+            self.status.frame_hash = pixel_hash(&self.world.render());
+        }
+    }
+    fn tick(&mut self) -> bool {
+        let Some(tick) = self.status.tick.checked_add(1) else {
+            self.pause(true);
+            return false;
+        };
+        match self
+            .world
+            .tick_behaviors(tick, self.pending, self.pressed, self.released)
+        {
+            Ok(logs) => {
+                self.status.logs.extend(logs);
+                if self.status.logs.len() > 64 {
+                    self.status.logs.drain(..self.status.logs.len() - 64);
+                }
+                self.status.entities = self.world.behavior_states();
+            }
+            Err(error) => {
+                self.status.error = Some(error);
+                self.pause(true);
+                return false;
+            }
+        }
+        self.status.tick = tick;
         self.status.input = self.pending;
         self.status.pressed = std::mem::take(&mut self.pressed);
         self.status.released = std::mem::take(&mut self.released);
+        true
     }
     pub fn advance(&mut self, seconds: f64) {
         if self.status.paused || !seconds.is_finite() || seconds <= 0.0 {
@@ -125,9 +179,13 @@ impl PlaySession {
         self.remaining += seconds.min(0.25);
         let count = (self.remaining * 60.0).floor() as u32;
         self.remaining -= f64::from(count) / 60.0;
+        let revision = self.world.visual_revision();
         for _ in 0..count.min(8) {
-            self.tick();
+            if !self.tick() {
+                break;
+            }
         }
+        self.refresh_frame(revision);
     }
     /// 실제 호스트의 표시 요청 횟수. tick과 별개이며 GPU 완료를 의미하지 않는다.
     pub fn presented(&mut self) {

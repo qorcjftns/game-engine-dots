@@ -44,12 +44,14 @@ fn tcp_cli_reads_published_state_instead_of_disk_and_reports_closed_server() {
         project: Some(Arc::new(ProjectInspection {
             project_file: project.display().to_string(),
             document: ProjectDocument {
-                schema_version: 1,
+                behaviors: vec![],
+                schema_version: 2,
                 name: "저장 전 문서".into(),
                 logical_width: 320,
                 logical_height: 180,
                 scene: Scene {
                     entities: vec![SpriteEntity {
+                        behavior_id: None,
                         id: EntityId(73),
                         asset_id: AssetId(19),
                         name: "게시된 개체".into(),

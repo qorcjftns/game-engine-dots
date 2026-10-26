@@ -74,6 +74,10 @@ def main():
         invalid.write_text(json.dumps({**document, "assets": []}), encoding="utf-8")
         before = hashes(directory)
 
+        # v1 파일은 읽기만 해도 반환 모델은 v2로 변환하지만 원본 bytes는 그대로 둔다.
+        document["schema_version"] = 2
+        document["behaviors"] = []
+        document["scene"]["entities"][0]["behavior_id"] = None
         data = invoke("project", "inspect", project)
         # Windows의 canonical 경로는 확장 길이 접두사(\\?\)를 포함할 수 있다.
         assert os.path.samefile(data.pop("project_file"), project), data

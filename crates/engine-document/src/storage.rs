@@ -23,7 +23,20 @@ pub(crate) fn new_project_path(path: &Path) -> Result<PathBuf> {
 pub(crate) fn read_project(path: &Path) -> Result<(PathBuf, ProjectDocument, Vec<u8>)> {
     let path = path.canonicalize()?;
     let bytes = read_limited(&path, MAX_DOCUMENT_BYTES)?;
-    let document: ProjectDocument = serde_json::from_slice(&bytes)?;
+    let mut document: ProjectDocument = serde_json::from_slice(&bytes)?;
+    if document.schema_version == 1 {
+        // v1은 행동 필드를 정의하지 않았습니다. 확장 필드가 있으면 잘못 표기한 파일입니다.
+        if !document.behaviors.is_empty()
+            || document
+                .scene
+                .entities
+                .iter()
+                .any(|e| e.behavior_id.is_some())
+        {
+            return Err(invalid("schema_version 1에는 행동을 저장할 수 없습니다."));
+        }
+        document.schema_version = 2;
+    }
     document.validate()?;
     Ok((path, document, bytes))
 }
