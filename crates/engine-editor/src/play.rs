@@ -97,10 +97,8 @@ impl EditorApp {
                 start = true;
             }
         });
-        if start {
-            if let Err(error) = self.start_play(ui.ctx()) {
-                self.workspace.status = error;
-            }
+        if start && let Err(error) = self.start_play(ui.ctx()) {
+            self.workspace.status = error;
         }
         if stop {
             self.stop_play();
