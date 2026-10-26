@@ -47,7 +47,7 @@ impl EditorApp {
         context: &egui::Context,
         command: &MutationCommand,
     ) -> Result<MutationEffect, ApiError> {
-        if self.editor_busy(context) {
+        if self.play.is_some() || self.editor_busy(context) {
             return Err(ApiError::new(
                 ErrorCode::EditorBusy,
                 "사람이 편집 중입니다. 입력을 마친 후 다시 요청하세요.",

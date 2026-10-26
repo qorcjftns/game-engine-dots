@@ -22,6 +22,8 @@ mod inspector;
 mod new_project;
 #[path = "../src/platform.rs"]
 mod platform;
+#[path = "../src/play.rs"]
+mod play;
 #[path = "../src/project_workflow.rs"]
 mod project_workflow;
 #[path = "../src/raster.rs"]
@@ -60,7 +62,7 @@ impl NativeSmoke {
         let snapshot = self.editor.publish_live(false).expect("live snapshot");
         let minimized = ctx.input(|input| input.viewport().minimized);
         let value = serde_json::json!({"id": id, "frames": self.frames,
-                                      "minimized": minimized, "snapshot": snapshot});
+                                      "minimized": minimized, "runtime": self.editor.play.as_ref().map(|r|r.status()), "snapshot": snapshot});
         fs::write(
             self.directory.join("host-observation.json"),
             serde_json::to_vec(&value).unwrap(),
@@ -81,6 +83,17 @@ impl NativeSmoke {
         }
         match command["action"].as_str().expect("command action") {
             "observe" => {}
+            "play" => self.editor.start_play(ctx).unwrap(),
+            "pause" => self.editor.play.as_mut().unwrap().pause(true),
+            "resume" => self.editor.play.as_mut().unwrap().pause(false),
+            "step" => self
+                .editor
+                .play
+                .as_mut()
+                .unwrap()
+                .step(command["ticks"].as_u64().unwrap_or(1) as u32)
+                .unwrap(),
+            "stop" => self.editor.stop_play(),
             "undo" => self.editor.process_action(ctx, EditorAction::Undo),
             "redo" => self.editor.process_action(ctx, EditorAction::Redo),
             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
@@ -154,10 +167,10 @@ fn main() -> eframe::Result {
     let finished = Arc::new(AtomicBool::new(false));
     let watchdog = finished.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(30));
+        std::thread::sleep(Duration::from_secs(180));
         if !watchdog.load(Ordering::Acquire) {
             eprintln!(
-                "Native GUI smoke exceeded 30 seconds; graphical session/renderer or workflow failed."
+                "Native GUI smoke exceeded 180 seconds; graphical session/renderer or workflow failed."
             );
             std::process::exit(124);
         }

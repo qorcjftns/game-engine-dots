@@ -113,6 +113,9 @@ impl EditorApp {
     }
 
     pub(crate) fn execute(&mut self, command: EditCommand) -> bool {
+        if self.play.is_some() {
+            return false;
+        }
         let Some(session) = &mut self.workspace.session else {
             return false;
         };
@@ -139,6 +142,10 @@ impl EditorApp {
     }
 
     pub(crate) fn process_action(&mut self, context: &egui::Context, action: EditorAction) {
+        if self.play.is_some() && !matches!(action, EditorAction::Quit) {
+            self.workspace.status = "Stop 후 편집·저장·프로젝트 전환을 할 수 있습니다.".into();
+            return;
+        }
         match action {
             EditorAction::NewProject => self.request_transition(context, Transition::NewProject),
             EditorAction::OpenProject => self.request_transition(context, Transition::OpenProject),
@@ -251,6 +258,8 @@ impl EditorApp {
         };
         match choice {
             Confirmation::Save => {
+                // 종료 저장은 실행 복사본을 버린 뒤 편집 원본만 저장한다.
+                self.stop_play();
                 if !self.commit_edits() || !self.save_with_publication() {
                     return;
                 }

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/engine-runtime",
+    "crates/engine-host",
     "crates/engine-core",
     "crates/engine-desktop",
     "crates/engine-cli",
@@ -20,6 +21,7 @@ publish = false
 
 [workspace.dependencies]
 engine-runtime = { path = "crates/engine-runtime" }
+engine-host = { path = "crates/engine-host" }
 engine-core = { path = "crates/engine-core" }
 engine-document = { path = "crates/engine-document" }
 engine-protocol = { path = "crates/engine-protocol" }
