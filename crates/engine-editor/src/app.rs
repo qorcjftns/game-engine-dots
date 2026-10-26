@@ -16,7 +16,7 @@ pub struct EditorApp {
     pub(crate) play: Option<engine_runtime::PlaySession>,
     pub(crate) next_run_id: u64,
     pub(crate) play_time: Option<std::time::Instant>,
-    game_view: engine_host::GameView,
+    pub(crate) game_view: engine_host::GameView,
     pub(crate) live_control: Option<crate::agent_control::LiveControl>,
     pub(crate) native_io_active: bool,
     pub(crate) workspace: ProjectWorkspace,

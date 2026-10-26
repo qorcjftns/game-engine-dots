@@ -41,6 +41,7 @@ impl EditorApp {
             || self.show_about
         {
             run.clear_input();
+            self.game_view.release_focus();
         }
         let now = std::time::Instant::now();
         if let Some(previous) = self.play_time.replace(now) {
