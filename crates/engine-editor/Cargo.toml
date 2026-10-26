@@ -8,6 +8,7 @@ publish.workspace = true
 engine-control.workspace = true
 engine-protocol.workspace = true
 engine-core.workspace = true
+engine-runtime.workspace = true
 engine-document.workspace = true
 rfd = { version = "=0.17.2", default-features = false }
 eframe = { version = "=0.37.0", default-features = false, features = [

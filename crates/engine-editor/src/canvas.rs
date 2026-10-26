@@ -142,14 +142,15 @@ impl SceneViewport {
         let minimum = (bounds.min.to_vec2() * pixels_per_point).ceil();
         let maximum = (bounds.max.to_vec2() * pixels_per_point).floor();
         let available = (maximum - minimum).max(Vec2::ZERO);
-        let scale = (available.x / width as f32)
-            .min(available.y / height as f32)
-            .floor();
-        if scale < 1.0 {
-            return None;
-        }
-        let size = Vec2::new(width as f32, height as f32) * scale;
-        let origin = minimum + ((available - size) * 0.5).floor();
+        let camera = engine_runtime::CameraViewport::fit(
+            available.x as u32,
+            available.y as u32,
+            width,
+            height,
+        )?;
+        let scale = camera.scale as f32;
+        let size = Vec2::new(camera.width as f32, camera.height as f32);
+        let origin = minimum + Vec2::new(camera.x as f32, camera.y as f32);
         Some(Self {
             rect: Rect::from_min_size(
                 (origin / pixels_per_point).to_pos2(),
